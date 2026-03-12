@@ -25,9 +25,24 @@ app.get("/", (req, res) => {
 });
 
 // Zoom webhook: RTMS and other Zoom events
-app.post("/zoom-webhook", (req, res) => {
+app.post("/zoom-webhook", async (req, res) => {
+  const event = req.body.event;
+  const payload = req.body.payload;
+
   console.log("Zoom webhook received:");
   console.log(JSON.stringify(req.body, null, 2));
+
+  if (event === "meeting.started") {
+    const meetingId = payload.object.id;
+
+    console.log("Meeting started:", meetingId);
+
+    // you must provide a Zoom OAuth access token
+    const accessToken = process.env.ZOOM_ACCESS_TOKEN;
+
+    await startRTMS(meetingId, accessToken);
+  }
+
   res.status(200).send("OK");
 });
 
