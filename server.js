@@ -69,6 +69,12 @@ app.post("/zoom-signature", (req, res) => {
 });
 
 const port = process.env.PORT || 3000;
+
+app.post("/zoom-webhook", (req, res) => {
+  console.log("Zoom RTMS Event:", req.body);
+  res.status(200).send("OK");
+});
+
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
