@@ -4,6 +4,8 @@ import dotenv from "dotenv";
 import pkg from "jsrsasign";
 import path from "path";
 import { fileURLToPath } from "url";
+import http from "http";
+import { WebSocketServer } from "ws";
 
 dotenv.config();
 
@@ -22,12 +24,19 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+// Zoom webhook: RTMS and other Zoom events
+app.post("/zoom-webhook", (req, res) => {
+  console.log("Zoom webhook received:");
+  console.log(JSON.stringify(req.body, null, 2));
+  res.status(200).send("OK");
+});
+
 // Create Meeting SDK signature
 app.post("/zoom-signature", (req, res) => {
   try {
     const { meetingNumber, role } = req.body;
 
-    if (!meetingNumber && meetingNumber !== 0) {
+    if (!meetingNumber) {
       return res.status(400).json({ error: "meetingNumber is required" });
     }
 
@@ -44,7 +53,7 @@ app.post("/zoom-signature", (req, res) => {
     const payload = {
       sdkKey,
       mn: String(meetingNumber),
-      role: Number(role || 0),
+      role: Number(role ?? 0),
       iat,
       exp,
       appKey: sdkKey,
@@ -59,22 +68,52 @@ app.post("/zoom-signature", (req, res) => {
       sdkSecret
     );
 
-    res.json({
-  signature,
-  sdkKey
-});
+    res.json({ signature, sdkKey });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-const port = process.env.PORT || 3000;
+const server = http.createServer(app);
 
-app.post("/zoom-webhook", (req, res) => {
-  console.log("Zoom RTMS Event:", req.body);
-  res.status(200).send("OK");
+// WebSocket endpoint for RTMS transcript/media
+const wss = new WebSocketServer({ server, path: "/rtms" });
+
+wss.on("connection", (ws, req) => {
+  console.log("RTMS WebSocket connected");
+
+  ws.on("message", (message) => {
+    try {
+      const text = message.toString();
+      console.log("RTMS message raw:", text);
+
+      // Try to parse JSON if transcript/events come in JSON form
+      try {
+        const data = JSON.parse(text);
+        console.log("RTMS message parsed:", JSON.stringify(data, null, 2));
+
+        // If transcript text exists, log it clearly
+        if (data?.text) {
+          console.log("Transcript text:", data.text);
+        }
+      } catch {
+        // Not JSON, just raw text/binary notice
+      }
+    } catch (err) {
+      console.error("RTMS message error:", err.message);
+    }
+  });
+
+  ws.on("close", () => {
+    console.log("RTMS WebSocket closed");
+  });
+
+  ws.on("error", (err) => {
+    console.error("RTMS WebSocket error:", err.message);
+  });
 });
 
-app.listen(port, () => {
+const port = process.env.PORT || 3000;
+server.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
