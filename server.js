@@ -9,7 +9,7 @@ app.post("/talk", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "authorization": "YOUR_API_KEY"
+        "authorization": "https://privnote.com/Bxhbla8Q#7voKqCGub"
       },
       body: JSON.stringify({
         prompt: req.body.text
