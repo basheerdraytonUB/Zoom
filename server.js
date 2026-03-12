@@ -114,6 +114,29 @@ wss.on("connection", (ws, req) => {
 });
 
 const port = process.env.PORT || 3000;
+
+async function startRTMS(meetingId, accessToken) {
+  try {
+    const response = await fetch(
+      `https://api.zoom.us/v2/live_meetings/${meetingId}/rtms_app/status`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          action: "start"
+        })
+      }
+    );
+
+    const data = await response.json();
+    console.log("RTMS start response:", data);
+  } catch (err) {
+    console.error("RTMS start error:", err.message);
+  }
+}
 server.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
