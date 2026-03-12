@@ -46,7 +46,7 @@
           })
         });
 
-        const { signature, error } = await signatureRes.json();
+        const { signature, sdkKey, error } = await signatureRes.json();
         if (error) {
           alert(error);
           return;
@@ -63,7 +63,7 @@
           meetingNumber,
           password: passWord,
           userName,
-          sdkKey: "",
+          sdkKey
         });
       }
 
