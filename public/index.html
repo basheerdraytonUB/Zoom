@@ -32,42 +32,42 @@
     <script>
       const client = ZoomMtgEmbedded.createClient();
 
-      async function joinMeeting() {
-        const meetingNumber = document.getElementById("meetingNumber").value.trim();
-        const passWord = document.getElementById("passWord").value.trim();
-        const userName = document.getElementById("userName").value.trim() || "AI Assistant";
+async function joinMeeting() {
+  const meetingNumber = document.getElementById("meetingNumber").value.trim();
+  const passWord = document.getElementById("passWord").value.trim();
+  const userName = document.getElementById("userName").value.trim() || "AI Assistant";
 
-        const signatureRes = await fetch("/zoom-signature", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            meetingNumber,
-            role: 0
-          })
-        });
+  const signatureRes = await fetch("/zoom-signature", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      meetingNumber,
+      role: 0
+    })
+  });
 
-        const { signature, sdkKey, error } = await signatureRes.json();
-        if (error) {
-          alert(error);
-          return;
-        }
+  const { signature, sdkKey, error } = await signatureRes.json();
+  if (error) {
+    alert(error);
+    return;
+  }
 
-        client.init({
-          zoomAppRoot: document.getElementById("meetingSDKElement"),
-          language: "en-US",
-          customize: {}
-        });
+  await client.init({
+    zoomAppRoot: document.getElementById("meetingSDKElement"),
+    language: "en-US",
+    customize: {}
+  });
 
-        await client.join({
-          signature,
-          meetingNumber,
-          password: passWord,
-          userName,
-          sdkKey
-        });
-      }
+  await client.join({
+    sdkKey,
+    signature,
+    meetingNumber: String(meetingNumber),
+    password: passWord,
+    userName
+  });
+}
 
-      document.getElementById("joinBtn").addEventListener("click", joinMeeting);
+document.getElementById("joinBtn").addEventListener("click", joinMeeting);
     </script>
   </body>
 </html>
