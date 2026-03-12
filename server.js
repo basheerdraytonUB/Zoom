@@ -1,30 +1,61 @@
 import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import pkg from "jsrsasign";
 
+dotenv.config();
+
+const { KJUR } = pkg;
 const app = express();
+
+app.use(cors());
 app.use(express.json());
 
-app.post("/talk", async (req, res) => {
-  try {
-    const response = await fetch("https://api.bland.ai/v1/agents/fedce9a8-a1d3-43b3-98ab-01e120ae4f80", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "authorization": "https://privnote.com/Bxhbla8Q#7voKqCGub"
-      },
-      body: JSON.stringify({
-        prompt: req.body.text
-      })
-    });
+app.get("/", (req, res) => {
+  res.send("Zoom bot server running");
+});
 
-    const data = await response.json();
-    res.json(data);
+// Create Meeting SDK signature
+app.post("/zoom-signature", (req, res) => {
+  try {
+    const { meetingNumber, role } = req.body;
+
+    if (!meetingNumber && meetingNumber !== 0) {
+      return res.status(400).json({ error: "meetingNumber is required" });
+    }
+
+    const sdkKey = process.env.ZOOM_SDK_KEY;
+    const sdkSecret = process.env.ZOOM_SDK_SECRET;
+
+    if (!sdkKey || !sdkSecret) {
+      return res.status(500).json({ error: "Missing Zoom SDK environment variables" });
+    }
+
+    const iat = Math.floor(Date.now() / 1000) - 30;
+    const exp = iat + 60 * 60 * 2;
+
+    const payload = {
+      sdkKey,
+      mn: String(meetingNumber),
+      role: Number(role || 0),
+      iat,
+      exp,
+      appKey: sdkKey,
+      tokenExp: exp
+    };
+
+    const header = { alg: "HS256", typ: "JWT" };
+    const signature = KJUR.jws.JWS.sign(
+      "HS256",
+      JSON.stringify(header),
+      JSON.stringify(payload),
+      sdkSecret
+    );
+
+    res.json({ signature });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
-
-app.get("/", (req, res) => {
-  res.send("Bland server running");
 });
 
 const port = process.env.PORT || 3000;
