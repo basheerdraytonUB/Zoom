@@ -59,7 +59,10 @@ app.post("/zoom-signature", (req, res) => {
       sdkSecret
     );
 
-    res.json({ signature });
+    res.json({
+  signature,
+  sdkKey
+});
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
