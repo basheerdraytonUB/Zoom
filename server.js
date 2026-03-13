@@ -24,7 +24,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// Zoom webhook: RTMS and other Zoom events
+// Zoom webhook
 app.post("/zoom-webhook", async (req, res) => {
   const event = req.body.event;
   const payload = req.body.payload;
@@ -34,11 +34,9 @@ app.post("/zoom-webhook", async (req, res) => {
 
   if (event === "meeting.started") {
     const meetingId = payload.object.id;
+    const accessToken = process.env.ZOOM_ACCESS_TOKEN;
 
     console.log("Meeting started:", meetingId);
-
-    // you must provide a Zoom OAuth access token
-    const accessToken = process.env.ZOOM_ACCESS_TOKEN;
 
     await startRTMS(meetingId, accessToken);
   }
@@ -94,7 +92,7 @@ const server = http.createServer(app);
 // WebSocket endpoint for RTMS transcript/media
 const wss = new WebSocketServer({ server, path: "/rtms" });
 
-wss.on("connection", (ws, req) => {
+wss.on("connection", (ws) => {
   console.log("RTMS WebSocket connected");
 
   ws.on("message", (message) => {
@@ -102,17 +100,14 @@ wss.on("connection", (ws, req) => {
       const text = message.toString();
       console.log("RTMS message raw:", text);
 
-      // Try to parse JSON if transcript/events come in JSON form
       try {
         const data = JSON.parse(text);
         console.log("RTMS message parsed:", JSON.stringify(data, null, 2));
 
-        // If transcript text exists, log it clearly
         if (data?.text) {
           console.log("Transcript text:", data.text);
         }
       } catch {
-        // Not JSON, just raw text/binary notice
       }
     } catch (err) {
       console.error("RTMS message error:", err.message);
@@ -153,28 +148,6 @@ async function startRTMS(meetingId, accessToken) {
 
 const port = process.env.PORT || 3000;
 
-async function startRTMS(meetingId, accessToken) {
-  try {
-    const response = await fetch(
-      `https://api.zoom.us/v2/live_meetings/${meetingId}/rtms_app/status`,
-      {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`
-        },
-        body: JSON.stringify({
-          action: "start"
-        })
-      }
-    );
-
-    const data = await response.json();
-    console.log("RTMS start response:", data);
-  } catch (err) {
-    console.error("RTMS start error:", err.message);
-  }
-}
 server.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
