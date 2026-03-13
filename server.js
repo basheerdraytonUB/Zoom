@@ -34,12 +34,20 @@ app.post("/zoom-webhook", async (req, res) => {
 
   if (event === "meeting.started") {
     const meetingId = payload?.object?.id;
+    const participantUserId = payload?.object?.host_id;
     const accessToken = process.env.ZOOM_ACCESS_TOKEN;
+    const rtmsClientId = process.env.ZOOM_SDK_KEY; // your RTMS-enabled General App client ID
 
     console.log("Meeting started:", meetingId);
+    console.log("Host participant_user_id:", participantUserId);
 
     if (!meetingId) {
       console.error("Missing meeting ID in webhook payload");
+      return res.status(200).send("OK");
+    }
+
+    if (!participantUserId) {
+      console.error("Missing host_id / participant_user_id in webhook payload");
       return res.status(200).send("OK");
     }
 
@@ -48,7 +56,12 @@ app.post("/zoom-webhook", async (req, res) => {
       return res.status(200).send("OK");
     }
 
-    await startRTMS(meetingId, accessToken);
+    if (!rtmsClientId) {
+      console.error("Missing ZOOM_SDK_KEY environment variable");
+      return res.status(200).send("OK");
+    }
+
+    await startRTMS(meetingId, participantUserId, rtmsClientId, accessToken);
   }
 
   res.status(200).send("OK");
@@ -134,7 +147,7 @@ wss.on("connection", (ws) => {
   });
 });
 
-async function startRTMS(meetingId, accessToken) {
+async function startRTMS(meetingId, participantUserId, rtmsClientId, accessToken) {
   try {
     const response = await fetch(
       `https://api-us.zoom.us/v2/live_meetings/${meetingId}/rtms_app/status`,
@@ -145,7 +158,11 @@ async function startRTMS(meetingId, accessToken) {
           Authorization: `Bearer ${accessToken}`
         },
         body: JSON.stringify({
-          action: "start"
+          action: "start",
+          settings: {
+            participant_user_id: participantUserId,
+            client_id: rtmsClientId
+          }
         })
       }
     );
