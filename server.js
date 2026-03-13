@@ -137,7 +137,7 @@ wss.on("connection", (ws) => {
 async function startRTMS(meetingId, accessToken) {
   try {
     const response = await fetch(
-      `https://api.zoom.us/v2/meetings/${meetingId}/rtms_app`,
+      `https://api-us.zoom.us/v2/live_meetings/${meetingId}/rtms_app/status`,
       {
         method: "PATCH",
         headers: {
