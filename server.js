@@ -33,10 +33,20 @@ app.post("/zoom-webhook", async (req, res) => {
   console.log(JSON.stringify(req.body, null, 2));
 
   if (event === "meeting.started") {
-    const meetingId = payload.object.id;
+    const meetingId = payload?.object?.id;
     const accessToken = process.env.ZOOM_ACCESS_TOKEN;
 
     console.log("Meeting started:", meetingId);
+
+    if (!meetingId) {
+      console.error("Missing meeting ID in webhook payload");
+      return res.status(200).send("OK");
+    }
+
+    if (!accessToken) {
+      console.error("Missing ZOOM_ACCESS_TOKEN environment variable");
+      return res.status(200).send("OK");
+    }
 
     await startRTMS(meetingId, accessToken);
   }
@@ -108,6 +118,7 @@ wss.on("connection", (ws) => {
           console.log("Transcript text:", data.text);
         }
       } catch {
+        // not JSON, ignore parse failure
       }
     } catch (err) {
       console.error("RTMS message error:", err.message);
@@ -126,7 +137,7 @@ wss.on("connection", (ws) => {
 async function startRTMS(meetingId, accessToken) {
   try {
     const response = await fetch(
-      `https://api.zoom.us/v2/live_meetings/${meetingId}/rtms_app/status`,
+      `https://api.zoom.us/v2/live_meetings/${meetingId}/rtms_app`,
       {
         method: "PATCH",
         headers: {
@@ -139,8 +150,8 @@ async function startRTMS(meetingId, accessToken) {
       }
     );
 
-    const data = await response.json();
-    console.log("RTMS start response:", data);
+    const text = await response.text();
+    console.log("RTMS raw response:", text);
   } catch (err) {
     console.error("RTMS start error:", err.message);
   }
