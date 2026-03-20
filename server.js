@@ -24,7 +24,7 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-// ===== ElevenLabs agent config =====
+// ===== ElevenLabs config =====
 const ELEVEN_AGENT_ID =
   process.env.ELEVENLABS_AGENT_ID || "agent_7401km5x2hhwemta4c2tm4azzap9";
 
@@ -32,7 +32,7 @@ let elevenWs = null;
 let elevenConnected = false;
 let elevenConnecting = false;
 
-// browser clients connected to /browser-events
+// ===== Browser clients =====
 const browserClients = new Set();
 
 function broadcastToBrowser(payload) {
@@ -44,6 +44,60 @@ function broadcastToBrowser(payload) {
   }
 }
 
+// ===== Zoom token cache =====
+let zoomTokenCache = {
+  accessToken: null,
+  expiresAt: 0
+};
+
+async function getZoomAccessToken() {
+  const now = Date.now();
+
+  if (
+    zoomTokenCache.accessToken &&
+    zoomTokenCache.expiresAt &&
+    now < zoomTokenCache.expiresAt - 60_000
+  ) {
+    return zoomTokenCache.accessToken;
+  }
+
+  const accountId = process.env.ZOOM_ACCOUNT_ID;
+  const clientId = process.env.ZOOM_CLIENT_ID;
+  const clientSecret = process.env.ZOOM_CLIENT_SECRET;
+
+  if (!accountId || !clientId || !clientSecret) {
+    throw new Error("Missing ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, or ZOOM_CLIENT_SECRET");
+  }
+
+  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+  const response = await fetch(
+    `https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${encodeURIComponent(accountId)}`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${basicAuth}`
+      }
+    }
+  );
+
+  const text = await response.text();
+
+  if (!response.ok) {
+    throw new Error(`Failed to get Zoom access token: ${text}`);
+  }
+
+  const data = JSON.parse(text);
+
+  zoomTokenCache.accessToken = data.access_token;
+  zoomTokenCache.expiresAt = Date.now() + (data.expires_in || 3600) * 1000;
+
+  console.log("Fetched new Zoom access token");
+
+  return zoomTokenCache.accessToken;
+}
+
+// ===== ElevenLabs helpers =====
 async function getElevenSignedUrl() {
   const apiKey = process.env.ELEVENLABS_API_KEY;
 
@@ -101,7 +155,6 @@ async function connectElevenLabs() {
 
         console.log("ElevenLabs event:", JSON.stringify(data, null, 2));
 
-        // agent text response
         if (data.type === "agent_response" && data.agent_response_event?.agent_response) {
           const reply = data.agent_response_event.agent_response;
           console.log("ElevenLabs agent text:", reply);
@@ -112,7 +165,6 @@ async function connectElevenLabs() {
           });
         }
 
-        // optional: pass raw audio event to browser if present
         if (data.type === "audio") {
           broadcastToBrowser({
             type: "agent_audio_event",
@@ -180,7 +232,6 @@ app.post("/zoom-webhook", async (req, res) => {
   if (event === "meeting.started") {
     const meetingId = payload?.object?.id;
     const participantUserId = payload?.object?.host_id;
-    const accessToken = process.env.ZOOM_ACCESS_TOKEN;
     const rtmsClientId = process.env.ZOOM_SDK_KEY;
 
     console.log("Meeting started:", meetingId);
@@ -196,13 +247,16 @@ app.post("/zoom-webhook", async (req, res) => {
       return res.status(200).send("OK");
     }
 
-    if (!accessToken) {
-      console.error("Missing ZOOM_ACCESS_TOKEN environment variable");
+    if (!rtmsClientId) {
+      console.error("Missing ZOOM_SDK_KEY environment variable");
       return res.status(200).send("OK");
     }
 
-    if (!rtmsClientId) {
-      console.error("Missing ZOOM_SDK_KEY environment variable");
+    let accessToken;
+    try {
+      accessToken = await getZoomAccessToken();
+    } catch (err) {
+      console.error("Failed to get Zoom access token:", err.message);
       return res.status(200).send("OK");
     }
 
@@ -258,7 +312,7 @@ app.post("/zoom-signature", (req, res) => {
 
 const server = http.createServer(app);
 
-// ===== RTMS WebSocket endpoint =====
+// ===== RTMS WebSocket =====
 const rtmsWss = new WebSocketServer({ server, path: "/rtms" });
 
 rtmsWss.on("connection", (ws) => {
