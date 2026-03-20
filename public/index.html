@@ -2,7 +2,7 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Zoom Bot Join</title>
+    <title>⚡ Calle Control Room</title>
 
     <script src="https://source.zoom.us/4.0.7/lib/vendor/react.min.js"></script>
     <script src="https://source.zoom.us/4.0.7/lib/vendor/react-dom.min.js"></script>
@@ -10,24 +10,101 @@
     <script src="https://source.zoom.us/4.0.7/lib/vendor/redux-thunk.min.js"></script>
     <script src="https://source.zoom.us/4.0.7/zoom-meeting-embedded-4.0.7.min.js"></script>
 
+    <!-- ElevenLabs fallback -->
+    <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
+
     <style>
-      body { font-family: Arial, sans-serif; margin: 20px; }
-      input, button { margin: 6px 0; padding: 8px; width: 320px; }
-      #meetingSDKElement { width: 100%; height: 700px; margin-top: 20px; }
+      body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: linear-gradient(135deg, #000000, #1a1a1a);
+        color: #FFD700;
+        text-align: center;
+      }
+
+      h2 {
+        margin-top: 30px;
+        text-shadow: 0 0 10px #FFD700;
+      }
+
+      .container {
+        margin-top: 20px;
+      }
+
+      input {
+        margin: 8px;
+        padding: 10px;
+        width: 280px;
+        border: none;
+        border-radius: 6px;
+        background: #111;
+        color: #FFD700;
+        outline: none;
+        box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+      }
+
+      button {
+        margin-top: 10px;
+        padding: 12px 20px;
+        background: #FFD700;
+        color: black;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        box-shadow: 0 0 10px #FFD700;
+        transition: 0.2s;
+      }
+
+      button:hover {
+        transform: scale(1.05);
+        box-shadow: 0 0 20px #FFD700;
+      }
+
+      #meetingSDKElement {
+        width: 100%;
+        height: 700px;
+        margin-top: 20px;
+      }
+
+      /* ⚡ glow background */
+      .storm-bg {
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        background:
+          radial-gradient(circle at 20% 20%, rgba(255,215,0,0.1), transparent),
+          radial-gradient(circle at 80% 80%, rgba(255,215,0,0.05), transparent);
+        z-index: -1;
+      }
+
+      /* ⚡ agent box */
+      .agent-box {
+        margin-top: 20px;
+        padding: 10px;
+      }
     </style>
   </head>
 
   <body>
-    <h2>Join Zoom Meeting as Bot</h2>
+    <div class="storm-bg"></div>
 
-    <div>
+    <h2>⚡ Calle Control Room</h2>
+
+    <!-- 🔥 ElevenLabs LIVE AGENT -->
+    <div class="agent-box">
+      <elevenlabs-convai agent-id="agent_7401km5x2hhwemta4c2tm4azzap9"></elevenlabs-convai>
+    </div>
+
+    <div class="container">
       <input id="meetingNumber" placeholder="Meeting Number" />
       <br />
       <input id="passWord" placeholder="Passcode" />
       <br />
-      <input id="userName" placeholder="Bot Display Name" value="AI Assistant" />
+      <input id="userName" value="⚡ Calle AI" />
       <br />
-      <button id="joinBtn">Join Meeting</button>
+      <button id="joinBtn">⚡ Join Meeting</button>
     </div>
 
     <div id="meetingSDKElement"></div>
@@ -38,7 +115,7 @@
       async function joinMeeting() {
         const meetingNumber = document.getElementById("meetingNumber").value.trim();
         const passWord = document.getElementById("passWord").value.trim();
-        const userName = document.getElementById("userName").value.trim() || "AI Assistant";
+        const userName = document.getElementById("userName").value.trim() || "⚡ Calle AI";
 
         const signatureRes = await fetch("/zoom-signature", {
           method: "POST",
