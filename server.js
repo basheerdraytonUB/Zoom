@@ -32,7 +32,18 @@ let elevenWs = null;
 let elevenConnected = false;
 let elevenConnecting = false;
 
-// Get signed URL for a private ElevenLabs agent
+// browser clients connected to /browser-events
+const browserClients = new Set();
+
+function broadcastToBrowser(payload) {
+  const msg = JSON.stringify(payload);
+  for (const client of browserClients) {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(msg);
+    }
+  }
+}
+
 async function getElevenSignedUrl() {
   const apiKey = process.env.ELEVENLABS_API_KEY;
 
@@ -75,7 +86,6 @@ async function connectElevenLabs() {
       elevenConnecting = false;
       console.log("ElevenLabs WebSocket connected");
 
-      // Optional initiation payload
       elevenWs.send(
         JSON.stringify({
           type: "conversation_initiation_client_data",
@@ -91,12 +101,23 @@ async function connectElevenLabs() {
 
         console.log("ElevenLabs event:", JSON.stringify(data, null, 2));
 
+        // agent text response
         if (data.type === "agent_response" && data.agent_response_event?.agent_response) {
-          console.log("ElevenLabs agent text:", data.agent_response_event.agent_response);
+          const reply = data.agent_response_event.agent_response;
+          console.log("ElevenLabs agent text:", reply);
+
+          broadcastToBrowser({
+            type: "agent_text",
+            text: reply
+          });
         }
 
+        // optional: pass raw audio event to browser if present
         if (data.type === "audio") {
-          console.log("ElevenLabs audio event received");
+          broadcastToBrowser({
+            type: "agent_audio_event",
+            data
+          });
         }
       } catch (err) {
         console.error("ElevenLabs message parse error:", err.message);
@@ -141,6 +162,11 @@ async function sendTranscriptToElevenLabs(transcript) {
   );
 
   console.log("Sent transcript to ElevenLabs:", transcript);
+
+  broadcastToBrowser({
+    type: "transcript",
+    text: transcript
+  });
 }
 
 // ===== Zoom webhook =====
@@ -187,7 +213,7 @@ app.post("/zoom-webhook", async (req, res) => {
   res.status(200).send("OK");
 });
 
-// ===== Create Meeting SDK signature =====
+// ===== Zoom Meeting SDK signature =====
 app.post("/zoom-signature", (req, res) => {
   try {
     const { meetingNumber, role } = req.body;
@@ -233,9 +259,9 @@ app.post("/zoom-signature", (req, res) => {
 const server = http.createServer(app);
 
 // ===== RTMS WebSocket endpoint =====
-const wss = new WebSocketServer({ server, path: "/rtms" });
+const rtmsWss = new WebSocketServer({ server, path: "/rtms" });
 
-wss.on("connection", (ws) => {
+rtmsWss.on("connection", (ws) => {
   console.log("RTMS WebSocket connected");
 
   ws.on("message", async (message) => {
@@ -254,7 +280,7 @@ wss.on("connection", (ws) => {
           await sendTranscriptToElevenLabs(transcript);
         }
       } catch {
-        // not JSON, ignore parse failure
+        // not JSON
       }
     } catch (err) {
       console.error("RTMS message error:", err.message);
@@ -267,6 +293,23 @@ wss.on("connection", (ws) => {
 
   ws.on("error", (err) => {
     console.error("RTMS WebSocket error:", err.message);
+  });
+});
+
+// ===== Browser events WebSocket =====
+const browserWss = new WebSocketServer({ server, path: "/browser-events" });
+
+browserWss.on("connection", (ws) => {
+  console.log("Browser events WebSocket connected");
+  browserClients.add(ws);
+
+  ws.on("close", () => {
+    browserClients.delete(ws);
+    console.log("Browser events WebSocket closed");
+  });
+
+  ws.on("error", () => {
+    browserClients.delete(ws);
   });
 });
 
