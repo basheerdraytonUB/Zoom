@@ -11,7 +11,7 @@
     <style>
       :root {
         --bg: #0a0a0a;
-        --panel: rgba(20, 20, 20, 0.92);
+        --panel: rgba(20, 20, 20, 0.94);
         --panel-2: rgba(255, 204, 0, 0.08);
         --yellow: #ffcc00;
         --yellow-soft: #ffd84d;
@@ -69,10 +69,20 @@
         80% { opacity: 0.18; }
       }
 
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 0.65; }
+        50% { transform: scale(1.12); opacity: 1; }
+      }
+
+      @keyframes wave {
+        0%, 100% { height: 10px; opacity: 0.5; }
+        50% { height: 28px; opacity: 1; }
+      }
+
       .shell {
         position: relative;
         z-index: 1;
-        width: min(1180px, calc(100% - 32px));
+        width: min(1280px, calc(100% - 32px));
         margin: 24px auto;
       }
 
@@ -204,10 +214,6 @@
         box-shadow: 0 14px 28px rgba(255, 204, 0, 0.28);
       }
 
-      button:active {
-        transform: translateY(0);
-      }
-
       .status-card {
         margin-top: 18px;
         padding: 14px;
@@ -270,9 +276,109 @@
         font-size: 13px;
       }
 
+      .dashboard {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+
+      .feed-card {
+        border: 1px solid rgba(255, 204, 0, 0.14);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.03);
+        min-height: 170px;
+        padding: 16px;
+      }
+
+      .feed-card h3 {
+        margin: 0 0 12px;
+        font-size: 15px;
+        color: var(--yellow-soft);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .feed-body {
+        color: #f2f2f2;
+        font-size: 15px;
+        line-height: 1.55;
+        min-height: 96px;
+        white-space: pre-wrap;
+      }
+
+      .feed-placeholder {
+        color: #8e8e8e;
+      }
+
+      .agent-card {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .speaking-box {
+        margin-top: 10px;
+        padding: 14px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 204, 0, 0.14);
+        background: rgba(255, 204, 0, 0.06);
+      }
+
+      .speaking-top {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .pulse-ring {
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        background: #8a8a8a;
+      }
+
+      .pulse-ring.live {
+        background: var(--yellow);
+        animation: pulse 1s infinite ease-in-out;
+        box-shadow: 0 0 16px rgba(255, 204, 0, 0.5);
+      }
+
+      .speaking-label {
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      .voice-bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 6px;
+        height: 34px;
+      }
+
+      .voice-bars span {
+        display: block;
+        width: 7px;
+        height: 10px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #ffe784, #ffcc00);
+        opacity: 0.35;
+      }
+
+      .voice-bars.live span {
+        animation: wave 0.9s infinite ease-in-out;
+        opacity: 1;
+      }
+
+      .voice-bars.live span:nth-child(2) { animation-delay: 0.1s; }
+      .voice-bars.live span:nth-child(3) { animation-delay: 0.2s; }
+      .voice-bars.live span:nth-child(4) { animation-delay: 0.3s; }
+      .voice-bars.live span:nth-child(5) { animation-delay: 0.4s; }
+
       #meetingSDKElement {
         width: 100%;
-        height: 720px;
+        height: 620px;
         border-radius: 18px;
         overflow: hidden;
         background: #090909;
@@ -287,6 +393,12 @@
         letter-spacing: 0.04em;
       }
 
+      @media (max-width: 1100px) {
+        .dashboard {
+          grid-template-columns: 1fr;
+        }
+      }
+
       @media (max-width: 960px) {
         .grid {
           grid-template-columns: 1fr;
@@ -298,7 +410,7 @@
         }
 
         #meetingSDKElement {
-          height: 620px;
+          height: 540px;
         }
       }
     </style>
@@ -317,8 +429,8 @@
         <div class="hero-left">
           <h1>⚡ Thunder Bot Control Room</h1>
           <p>
-            Join your Zoom meeting with a storm-themed AI participant, monitor live agent events,
-            and let the assistant speak directly from the browser.
+            Join your Zoom meeting with a storm-themed AI participant, monitor live transcript flow,
+            and watch the assistant respond in real time.
           </p>
         </div>
         <div class="badge">⚡ Live Voice Agent Interface</div>
@@ -369,6 +481,38 @@
             <div class="badge">Thunder Mode</div>
           </div>
 
+          <div class="dashboard">
+            <div class="feed-card">
+              <h3>⚡ Live Transcript</h3>
+              <div class="feed-body" id="transcriptFeed">
+                <span class="feed-placeholder">Waiting for transcript...</span>
+              </div>
+            </div>
+
+            <div class="feed-card agent-card">
+              <div>
+                <h3>⚡ Agent Response</h3>
+                <div class="feed-body" id="agentFeed">
+                  <span class="feed-placeholder">Waiting for agent reply...</span>
+                </div>
+              </div>
+
+              <div class="speaking-box">
+                <div class="speaking-top">
+                  <div class="pulse-ring" id="pulseRing"></div>
+                  <div class="speaking-label" id="speakingLabel">Agent idle</div>
+                </div>
+                <div class="voice-bars" id="voiceBars">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div id="meetingSDKElement"></div>
         </section>
       </div>
@@ -383,6 +527,11 @@
 
       const browserStatus = document.getElementById("browserStatus");
       const speechStatus = document.getElementById("speechStatus");
+      const transcriptFeed = document.getElementById("transcriptFeed");
+      const agentFeed = document.getElementById("agentFeed");
+      const pulseRing = document.getElementById("pulseRing");
+      const voiceBars = document.getElementById("voiceBars");
+      const speakingLabel = document.getElementById("speakingLabel");
 
       const browserProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const browserWs = new WebSocket(`${browserProtocol}//${window.location.host}/browser-events`);
@@ -397,21 +546,39 @@
         console.log("Browser event:", data);
 
         if (data.type === "transcript") {
-          console.log("Transcript heard:", data.text);
+          transcriptFeed.textContent = data.text;
         }
 
         if (data.type === "agent_text") {
-          console.log("Agent says:", data.text);
+          agentFeed.textContent = data.text;
 
           const utterance = new SpeechSynthesisUtterance(data.text);
           utterance.rate = 1;
           utterance.pitch = 1;
           utterance.volume = 1;
 
-          utterance.onstart = () => speechStatus.classList.add("live");
-          utterance.onend = () => speechStatus.classList.remove("live");
-          utterance.onerror = () => speechStatus.classList.remove("live");
+          utterance.onstart = () => {
+            speechStatus.classList.add("live");
+            pulseRing.classList.add("live");
+            voiceBars.classList.add("live");
+            speakingLabel.textContent = "Agent speaking";
+          };
 
+          utterance.onend = () => {
+            speechStatus.classList.remove("live");
+            pulseRing.classList.remove("live");
+            voiceBars.classList.remove("live");
+            speakingLabel.textContent = "Agent idle";
+          };
+
+          utterance.onerror = () => {
+            speechStatus.classList.remove("live");
+            pulseRing.classList.remove("live");
+            voiceBars.classList.remove("live");
+            speakingLabel.textContent = "Speech error";
+          };
+
+          speechSynthesis.cancel();
           speechSynthesis.speak(utterance);
         }
 
