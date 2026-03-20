@@ -303,11 +303,3 @@ const port = process.env.PORT || 3000;
 server.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
-
-app.get("/test-agent", async (req, res) => {
-  const response = await callElevenAgent("Hello, introduce yourself");
-
-  console.log(response);
-
-  res.json(response);
-});
