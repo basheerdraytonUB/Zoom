@@ -258,18 +258,17 @@
 
       .widget-wrap {
         margin-top: 18px;
-        padding: 12px;
+        padding: 14px;
         border-radius: 16px;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 204, 0, 0.14);
+        background: var(--panel-2);
+        border: 1px solid rgba(255, 204, 0, 0.15);
       }
 
-      .widget-title {
+      .widget-wrap h3 {
         margin: 0 0 10px;
+        font-size: 15px;
         color: var(--yellow-soft);
-        font-size: 13px;
-        font-weight: bold;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.04em;
         text-transform: uppercase;
       }
 
@@ -455,7 +454,7 @@
           <h1>⚡ Calle Control Room</h1>
           <p>
             Join your Zoom meeting with a storm-themed AI participant, monitor live transcript flow,
-            and talk to Calle through the fallback voice agent while Zoom stays embedded.
+            and talk with Calle through the fallback voice agent.
           </p>
         </div>
         <div class="badge">⚡ Live Voice Agent Interface</div>
@@ -497,7 +496,7 @@
           </div>
 
           <div class="widget-wrap">
-            <div class="widget-title">Calle Voice Agent</div>
+            <h3>⚡ Calle Voice Agent</h3>
             <elevenlabs-convai agent-id="agent_7401km5x2hhwemta4c2tm4azzap9"></elevenlabs-convai>
           </div>
         </aside>
