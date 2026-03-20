@@ -2,72 +2,474 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Zoom Bot Join</title>
+    <title>Thunder Bot Join</title>
     <script src="https://source.zoom.us/4.0.7/lib/vendor/react.min.js"></script>
     <script src="https://source.zoom.us/4.0.7/lib/vendor/react-dom.min.js"></script>
     <script src="https://source.zoom.us/4.0.7/lib/vendor/redux.min.js"></script>
     <script src="https://source.zoom.us/4.0.7/lib/vendor/redux-thunk.min.js"></script>
     <script src="https://source.zoom.us/4.0.7/zoom-meeting-embedded-4.0.7.min.js"></script>
     <style>
-      body { font-family: Arial, sans-serif; margin: 20px; }
-      input, button { margin: 6px 0; padding: 8px; width: 320px; }
-      #meetingSDKElement { width: 100%; height: 700px; margin-top: 20px; }
+      :root {
+        --bg: #0a0a0a;
+        --panel: rgba(20, 20, 20, 0.92);
+        --panel-2: rgba(255, 204, 0, 0.08);
+        --yellow: #ffcc00;
+        --yellow-soft: #ffd84d;
+        --text: #f8f8f8;
+        --muted: #bdbdbd;
+        --border: rgba(255, 204, 0, 0.25);
+        --shadow: 0 0 24px rgba(255, 204, 0, 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Arial, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(255, 204, 0, 0.12), transparent 25%),
+          radial-gradient(circle at top right, rgba(255, 204, 0, 0.08), transparent 20%),
+          linear-gradient(180deg, #050505 0%, #111111 100%);
+        overflow-x: hidden;
+      }
+
+      .storm-bg {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+        z-index: 0;
+      }
+
+      .bolt {
+        position: absolute;
+        color: rgba(255, 204, 0, 0.18);
+        font-size: 70px;
+        text-shadow: 0 0 18px rgba(255, 204, 0, 0.25);
+        animation: flicker 5s infinite ease-in-out;
+      }
+
+      .bolt.one { top: 40px; left: 40px; animation-delay: 0s; }
+      .bolt.two { top: 140px; right: 60px; animation-delay: 1.5s; }
+      .bolt.three { bottom: 180px; left: 70px; animation-delay: 2.2s; }
+      .bolt.four { bottom: 80px; right: 100px; animation-delay: 3s; }
+      .bolt.five { top: 50%; left: 48%; font-size: 42px; animation-delay: 1s; }
+
+      @keyframes flicker {
+        0%, 100% { opacity: 0.15; transform: scale(1); }
+        10% { opacity: 0.4; transform: scale(1.08); }
+        20% { opacity: 0.12; }
+        30% { opacity: 0.5; transform: scale(1.02); }
+        40% { opacity: 0.16; }
+        60% { opacity: 0.34; }
+        80% { opacity: 0.18; }
+      }
+
+      .shell {
+        position: relative;
+        z-index: 1;
+        width: min(1180px, calc(100% - 32px));
+        margin: 24px auto;
+      }
+
+      .hero {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 20px;
+        padding: 24px 28px;
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        background: linear-gradient(135deg, rgba(255, 204, 0, 0.12), rgba(255, 204, 0, 0.03));
+        box-shadow: var(--shadow);
+      }
+
+      .hero-left h1 {
+        margin: 0 0 8px;
+        font-size: 34px;
+        letter-spacing: 0.5px;
+      }
+
+      .hero-left p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+        max-width: 700px;
+        line-height: 1.5;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(255, 204, 0, 0.15);
+        border: 1px solid rgba(255, 204, 0, 0.3);
+        color: var(--yellow-soft);
+        font-weight: bold;
+        white-space: nowrap;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 20px;
+      }
+
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+
+      .control-panel {
+        padding: 22px;
+      }
+
+      .panel-title {
+        margin: 0 0 16px;
+        font-size: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .panel-subtitle {
+        margin: -6px 0 20px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .field {
+        margin-bottom: 14px;
+      }
+
+      .field label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--yellow-soft);
+        font-size: 13px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      input {
+        width: 100%;
+        padding: 13px 14px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 204, 0, 0.22);
+        background: rgba(255, 255, 255, 0.04);
+        color: white;
+        outline: none;
+        font-size: 15px;
+        transition: 0.2s ease;
+      }
+
+      input::placeholder {
+        color: #9d9d9d;
+      }
+
+      input:focus {
+        border-color: var(--yellow);
+        box-shadow: 0 0 0 3px rgba(255, 204, 0, 0.12);
+      }
+
+      button {
+        width: 100%;
+        margin-top: 8px;
+        padding: 14px 16px;
+        border: none;
+        border-radius: 16px;
+        background: linear-gradient(135deg, var(--yellow), #f5b700);
+        color: #111;
+        font-weight: bold;
+        font-size: 15px;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.2s ease;
+        box-shadow: 0 10px 22px rgba(255, 204, 0, 0.22);
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 14px 28px rgba(255, 204, 0, 0.28);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      .status-card {
+        margin-top: 18px;
+        padding: 14px;
+        border-radius: 16px;
+        background: var(--panel-2);
+        border: 1px solid rgba(255, 204, 0, 0.15);
+      }
+
+      .status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        font-size: 14px;
+        margin-bottom: 10px;
+      }
+
+      .status-row:last-child {
+        margin-bottom: 0;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: #666;
+        box-shadow: 0 0 0 4px rgba(255,255,255,0.03);
+      }
+
+      .dot.live {
+        background: #ffcc00;
+        box-shadow: 0 0 14px rgba(255, 204, 0, 0.6);
+      }
+
+      .meeting-panel {
+        overflow: hidden;
+        padding: 14px;
+      }
+
+      .meeting-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 12px;
+        padding: 10px 12px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 204, 0, 0.12);
+      }
+
+      .meeting-header h2 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .meeting-header p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      #meetingSDKElement {
+        width: 100%;
+        height: 720px;
+        border-radius: 18px;
+        overflow: hidden;
+        background: #090909;
+        border: 1px solid rgba(255, 204, 0, 0.16);
+      }
+
+      .footer-note {
+        margin-top: 14px;
+        text-align: center;
+        color: #9a9a9a;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+      }
+
+      @media (max-width: 960px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .hero {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        #meetingSDKElement {
+          height: 620px;
+        }
+      }
     </style>
   </head>
   <body>
-    <h2>Join Zoom Meeting as Bot</h2>
-
-    <div>
-      <input id="meetingNumber" placeholder="Meeting Number" />
-      <br />
-      <input id="passWord" placeholder="Passcode" />
-      <br />
-      <input id="userName" placeholder="Bot Display Name" value="AI Assistant" />
-      <br />
-      <button id="joinBtn">Join Meeting</button>
+    <div class="storm-bg">
+      <div class="bolt one">⚡</div>
+      <div class="bolt two">⚡</div>
+      <div class="bolt three">⚡</div>
+      <div class="bolt four">⚡</div>
+      <div class="bolt five">⚡</div>
     </div>
 
-    <div id="meetingSDKElement"></div>
+    <div class="shell">
+      <section class="hero">
+        <div class="hero-left">
+          <h1>⚡ Thunder Bot Control Room</h1>
+          <p>
+            Join your Zoom meeting with a storm-themed AI participant, monitor live agent events,
+            and let the assistant speak directly from the browser.
+          </p>
+        </div>
+        <div class="badge">⚡ Live Voice Agent Interface</div>
+      </section>
+
+      <div class="grid">
+        <aside class="panel control-panel">
+          <h2 class="panel-title">⚡ Join Settings</h2>
+          <p class="panel-subtitle">
+            Enter your Zoom details below and launch the assistant into the meeting.
+          </p>
+
+          <div class="field">
+            <label for="meetingNumber">Meeting Number</label>
+            <input id="meetingNumber" placeholder="Enter meeting number" />
+          </div>
+
+          <div class="field">
+            <label for="passWord">Passcode</label>
+            <input id="passWord" placeholder="Enter meeting passcode" />
+          </div>
+
+          <div class="field">
+            <label for="userName">Bot Display Name</label>
+            <input id="userName" placeholder="AI Assistant" value="AI Assistant" />
+          </div>
+
+          <button id="joinBtn">⚡ Join Meeting</button>
+
+          <div class="status-card">
+            <div class="status-row">
+              <span>Browser Events</span>
+              <span class="dot" id="browserStatus"></span>
+            </div>
+            <div class="status-row">
+              <span>Speech Output</span>
+              <span class="dot" id="speechStatus"></span>
+            </div>
+          </div>
+        </aside>
+
+        <section class="panel meeting-panel">
+          <div class="meeting-header">
+            <div>
+              <h2>⚡ Live Meeting View</h2>
+              <p>Embedded Zoom session with browser-side voice playback</p>
+            </div>
+            <div class="badge">Thunder Mode</div>
+          </div>
+
+          <div id="meetingSDKElement"></div>
+        </section>
+      </div>
+
+      <div class="footer-note">
+        THUNDER BOT // BLACKOUT INTERFACE // LIVE ZOOM AGENT
+      </div>
+    </div>
 
     <script>
       const client = ZoomMtgEmbedded.createClient();
 
-async function joinMeeting() {
-  const meetingNumber = document.getElementById("meetingNumber").value.trim();
-  const passWord = document.getElementById("passWord").value.trim();
-  const userName = document.getElementById("userName").value.trim() || "AI Assistant";
+      const browserStatus = document.getElementById("browserStatus");
+      const speechStatus = document.getElementById("speechStatus");
 
-  const signatureRes = await fetch("/zoom-signature", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      meetingNumber,
-      role: 0
-    })
-  });
+      const browserProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const browserWs = new WebSocket(`${browserProtocol}//${window.location.host}/browser-events`);
 
-  const { signature, sdkKey, error } = await signatureRes.json();
-  if (error) {
-    alert(error);
-    return;
-  }
+      browserWs.onopen = () => {
+        console.log("Connected to browser-events WebSocket");
+        browserStatus.classList.add("live");
+      };
 
-  await client.init({
-    zoomAppRoot: document.getElementById("meetingSDKElement"),
-    language: "en-US",
-    customize: {}
-  });
+      browserWs.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log("Browser event:", data);
 
-  await client.join({
-    sdkKey,
-    signature,
-    meetingNumber: String(meetingNumber),
-    password: passWord,
-    userName
-  });
-}
+        if (data.type === "transcript") {
+          console.log("Transcript heard:", data.text);
+        }
 
-document.getElementById("joinBtn").addEventListener("click", joinMeeting);
+        if (data.type === "agent_text") {
+          console.log("Agent says:", data.text);
+
+          const utterance = new SpeechSynthesisUtterance(data.text);
+          utterance.rate = 1;
+          utterance.pitch = 1;
+          utterance.volume = 1;
+
+          utterance.onstart = () => speechStatus.classList.add("live");
+          utterance.onend = () => speechStatus.classList.remove("live");
+          utterance.onerror = () => speechStatus.classList.remove("live");
+
+          speechSynthesis.speak(utterance);
+        }
+
+        if (data.type === "agent_audio_event") {
+          console.log("Agent audio event received");
+        }
+      };
+
+      browserWs.onerror = (err) => {
+        console.error("browser-events socket error", err);
+        browserStatus.classList.remove("live");
+      };
+
+      browserWs.onclose = () => {
+        browserStatus.classList.remove("live");
+      };
+
+      async function joinMeeting() {
+        const meetingNumber = document
+          .getElementById("meetingNumber")
+          .value
+          .replace(/\s+/g, "")
+          .trim();
+
+        const passWord = document.getElementById("passWord").value.trim();
+        const userName = document.getElementById("userName").value.trim() || "AI Assistant";
+
+        const signatureRes = await fetch("/zoom-signature", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            meetingNumber,
+            role: 0
+          })
+        });
+
+        const { signature, sdkKey, error } = await signatureRes.json();
+        if (error) {
+          alert(error);
+          return;
+        }
+
+        await client.init({
+          zoomAppRoot: document.getElementById("meetingSDKElement"),
+          language: "en-US",
+          customize: {}
+        });
+
+        await client.join({
+          sdkKey,
+          signature,
+          meetingNumber,
+          password: passWord,
+          userName
+        });
+      }
+
+      document.getElementById("joinBtn").addEventListener("click", joinMeeting);
     </script>
   </body>
 </html>
