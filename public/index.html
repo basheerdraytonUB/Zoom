@@ -2,120 +2,639 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>⚡ Calle Control Room</title>
-
+    <title>Calle Control Room</title>
     <script src="https://source.zoom.us/4.0.7/lib/vendor/react.min.js"></script>
     <script src="https://source.zoom.us/4.0.7/lib/vendor/react-dom.min.js"></script>
     <script src="https://source.zoom.us/4.0.7/lib/vendor/redux.min.js"></script>
     <script src="https://source.zoom.us/4.0.7/lib/vendor/redux-thunk.min.js"></script>
     <script src="https://source.zoom.us/4.0.7/zoom-meeting-embedded-4.0.7.min.js"></script>
 
-    <!-- ElevenLabs fallback -->
-    <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
+    <!-- ElevenLabs fallback widget -->
+    <script
+      src="https://unpkg.com/@elevenlabs/convai-widget-embed"
+      async
+      type="text/javascript"
+    ></script>
 
     <style>
+      :root {
+        --bg: #0a0a0a;
+        --panel: rgba(20, 20, 20, 0.94);
+        --panel-2: rgba(255, 204, 0, 0.08);
+        --yellow: #ffcc00;
+        --yellow-soft: #ffd84d;
+        --text: #f8f8f8;
+        --muted: #bdbdbd;
+        --border: rgba(255, 204, 0, 0.25);
+        --shadow: 0 0 24px rgba(255, 204, 0, 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         margin: 0;
+        min-height: 100vh;
         font-family: Arial, sans-serif;
-        background: linear-gradient(135deg, #000000, #1a1a1a);
-        color: #FFD700;
-        text-align: center;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(255, 204, 0, 0.12), transparent 25%),
+          radial-gradient(circle at top right, rgba(255, 204, 0, 0.08), transparent 20%),
+          linear-gradient(180deg, #050505 0%, #111111 100%);
+        overflow-x: hidden;
       }
 
-      h2 {
-        margin-top: 30px;
-        text-shadow: 0 0 10px #FFD700;
+      .storm-bg {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        overflow: hidden;
+        z-index: 0;
       }
 
-      .container {
-        margin-top: 20px;
+      .bolt {
+        position: absolute;
+        color: rgba(255, 204, 0, 0.18);
+        font-size: 70px;
+        text-shadow: 0 0 18px rgba(255, 204, 0, 0.25);
+        animation: flicker 5s infinite ease-in-out;
+      }
+
+      .bolt.one { top: 40px; left: 40px; animation-delay: 0s; }
+      .bolt.two { top: 140px; right: 60px; animation-delay: 1.5s; }
+      .bolt.three { bottom: 180px; left: 70px; animation-delay: 2.2s; }
+      .bolt.four { bottom: 80px; right: 100px; animation-delay: 3s; }
+      .bolt.five { top: 50%; left: 48%; font-size: 42px; animation-delay: 1s; }
+
+      @keyframes flicker {
+        0%, 100% { opacity: 0.15; transform: scale(1); }
+        10% { opacity: 0.4; transform: scale(1.08); }
+        20% { opacity: 0.12; }
+        30% { opacity: 0.5; transform: scale(1.02); }
+        40% { opacity: 0.16; }
+        60% { opacity: 0.34; }
+        80% { opacity: 0.18; }
+      }
+
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 0.65; }
+        50% { transform: scale(1.12); opacity: 1; }
+      }
+
+      @keyframes wave {
+        0%, 100% { height: 10px; opacity: 0.5; }
+        50% { height: 28px; opacity: 1; }
+      }
+
+      .shell {
+        position: relative;
+        z-index: 1;
+        width: min(1280px, calc(100% - 32px));
+        margin: 24px auto;
+      }
+
+      .hero {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 20px;
+        padding: 24px 28px;
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        background: linear-gradient(135deg, rgba(255, 204, 0, 0.12), rgba(255, 204, 0, 0.03));
+        box-shadow: var(--shadow);
+      }
+
+      .hero-left h1 {
+        margin: 0 0 8px;
+        font-size: 34px;
+        letter-spacing: 0.5px;
+      }
+
+      .hero-left p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 15px;
+        max-width: 700px;
+        line-height: 1.5;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(255, 204, 0, 0.15);
+        border: 1px solid rgba(255, 204, 0, 0.3);
+        color: var(--yellow-soft);
+        font-weight: bold;
+        white-space: nowrap;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 20px;
+      }
+
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+
+      .control-panel {
+        padding: 22px;
+      }
+
+      .panel-title {
+        margin: 0 0 16px;
+        font-size: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .panel-subtitle {
+        margin: -6px 0 20px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.45;
+      }
+
+      .field {
+        margin-bottom: 14px;
+      }
+
+      .field label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--yellow-soft);
+        font-size: 13px;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
       }
 
       input {
-        margin: 8px;
-        padding: 10px;
-        width: 280px;
-        border: none;
-        border-radius: 6px;
-        background: #111;
-        color: #FFD700;
+        width: 100%;
+        padding: 13px 14px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 204, 0, 0.22);
+        background: rgba(255, 255, 255, 0.04);
+        color: white;
         outline: none;
-        box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
+        font-size: 15px;
+        transition: 0.2s ease;
+      }
+
+      input::placeholder {
+        color: #9d9d9d;
+      }
+
+      input:focus {
+        border-color: var(--yellow);
+        box-shadow: 0 0 0 3px rgba(255, 204, 0, 0.12);
       }
 
       button {
-        margin-top: 10px;
-        padding: 12px 20px;
-        background: #FFD700;
-        color: black;
+        width: 100%;
+        margin-top: 8px;
+        padding: 14px 16px;
         border: none;
-        border-radius: 6px;
-        cursor: pointer;
+        border-radius: 16px;
+        background: linear-gradient(135deg, var(--yellow), #f5b700);
+        color: #111;
         font-weight: bold;
-        box-shadow: 0 0 10px #FFD700;
-        transition: 0.2s;
+        font-size: 15px;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.2s ease;
+        box-shadow: 0 10px 22px rgba(255, 204, 0, 0.22);
       }
 
       button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 0 20px #FFD700;
+        transform: translateY(-1px);
+        box-shadow: 0 14px 28px rgba(255, 204, 0, 0.28);
       }
+
+      .status-card {
+        margin-top: 18px;
+        padding: 14px;
+        border-radius: 16px;
+        background: var(--panel-2);
+        border: 1px solid rgba(255, 204, 0, 0.15);
+      }
+
+      .status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        font-size: 14px;
+        margin-bottom: 10px;
+      }
+
+      .status-row:last-child {
+        margin-bottom: 0;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: #666;
+        box-shadow: 0 0 0 4px rgba(255,255,255,0.03);
+      }
+
+      .dot.live {
+        background: #ffcc00;
+        box-shadow: 0 0 14px rgba(255, 204, 0, 0.6);
+      }
+
+      .widget-wrap {
+        margin-top: 18px;
+        padding: 12px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 204, 0, 0.14);
+      }
+
+      .widget-title {
+        margin: 0 0 10px;
+        color: var(--yellow-soft);
+        font-size: 13px;
+        font-weight: bold;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .meeting-panel {
+        overflow: hidden;
+        padding: 14px;
+      }
+
+      .meeting-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 12px;
+        padding: 10px 12px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 204, 0, 0.12);
+      }
+
+      .meeting-header h2 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .meeting-header p {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .dashboard {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 14px;
+        margin-bottom: 14px;
+      }
+
+      .feed-card {
+        border: 1px solid rgba(255, 204, 0, 0.14);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.03);
+        min-height: 170px;
+        padding: 16px;
+      }
+
+      .feed-card h3 {
+        margin: 0 0 12px;
+        font-size: 15px;
+        color: var(--yellow-soft);
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .feed-body {
+        color: #f2f2f2;
+        font-size: 15px;
+        line-height: 1.55;
+        min-height: 96px;
+        white-space: pre-wrap;
+      }
+
+      .feed-placeholder {
+        color: #8e8e8e;
+      }
+
+      .agent-card {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .speaking-box {
+        margin-top: 10px;
+        padding: 14px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 204, 0, 0.14);
+        background: rgba(255, 204, 0, 0.06);
+      }
+
+      .speaking-top {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .pulse-ring {
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        background: #8a8a8a;
+      }
+
+      .pulse-ring.live {
+        background: var(--yellow);
+        animation: pulse 1s infinite ease-in-out;
+        box-shadow: 0 0 16px rgba(255, 204, 0, 0.5);
+      }
+
+      .speaking-label {
+        font-size: 14px;
+        color: var(--muted);
+      }
+
+      .voice-bars {
+        display: flex;
+        align-items: flex-end;
+        gap: 6px;
+        height: 34px;
+      }
+
+      .voice-bars span {
+        display: block;
+        width: 7px;
+        height: 10px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, #ffe784, #ffcc00);
+        opacity: 0.35;
+      }
+
+      .voice-bars.live span {
+        animation: wave 0.9s infinite ease-in-out;
+        opacity: 1;
+      }
+
+      .voice-bars.live span:nth-child(2) { animation-delay: 0.1s; }
+      .voice-bars.live span:nth-child(3) { animation-delay: 0.2s; }
+      .voice-bars.live span:nth-child(4) { animation-delay: 0.3s; }
+      .voice-bars.live span:nth-child(5) { animation-delay: 0.4s; }
 
       #meetingSDKElement {
         width: 100%;
-        height: 700px;
-        margin-top: 20px;
+        height: 620px;
+        border-radius: 18px;
+        overflow: hidden;
+        background: #090909;
+        border: 1px solid rgba(255, 204, 0, 0.16);
       }
 
-      /* ⚡ glow background */
-      .storm-bg {
-        position: fixed;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-        background:
-          radial-gradient(circle at 20% 20%, rgba(255,215,0,0.1), transparent),
-          radial-gradient(circle at 80% 80%, rgba(255,215,0,0.05), transparent);
-        z-index: -1;
+      .footer-note {
+        margin-top: 14px;
+        text-align: center;
+        color: #9a9a9a;
+        font-size: 12px;
+        letter-spacing: 0.04em;
       }
 
-      /* ⚡ agent box */
-      .agent-box {
-        margin-top: 20px;
-        padding: 10px;
+      @media (max-width: 1100px) {
+        .dashboard {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 960px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .hero {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        #meetingSDKElement {
+          height: 540px;
+        }
       }
     </style>
   </head>
-
   <body>
-    <div class="storm-bg"></div>
-
-    <h2>⚡ Calle Control Room</h2>
-
-    <!-- 🔥 ElevenLabs LIVE AGENT -->
-    <div class="agent-box">
-      <elevenlabs-convai agent-id="agent_7401km5x2hhwemta4c2tm4azzap9"></elevenlabs-convai>
+    <div class="storm-bg">
+      <div class="bolt one">⚡</div>
+      <div class="bolt two">⚡</div>
+      <div class="bolt three">⚡</div>
+      <div class="bolt four">⚡</div>
+      <div class="bolt five">⚡</div>
     </div>
 
-    <div class="container">
-      <input id="meetingNumber" placeholder="Meeting Number" />
-      <br />
-      <input id="passWord" placeholder="Passcode" />
-      <br />
-      <input id="userName" value="⚡ Calle AI" />
-      <br />
-      <button id="joinBtn">⚡ Join Meeting</button>
-    </div>
+    <div class="shell">
+      <section class="hero">
+        <div class="hero-left">
+          <h1>⚡ Calle Control Room</h1>
+          <p>
+            Join your Zoom meeting with a storm-themed AI participant, monitor live transcript flow,
+            and talk to Calle through the fallback voice agent while Zoom stays embedded.
+          </p>
+        </div>
+        <div class="badge">⚡ Live Voice Agent Interface</div>
+      </section>
 
-    <div id="meetingSDKElement"></div>
+      <div class="grid">
+        <aside class="panel control-panel">
+          <h2 class="panel-title">⚡ Join Settings</h2>
+          <p class="panel-subtitle">
+            Enter your Zoom details below and launch Calle into the meeting.
+          </p>
+
+          <div class="field">
+            <label for="meetingNumber">Meeting Number</label>
+            <input id="meetingNumber" placeholder="Enter meeting number" />
+          </div>
+
+          <div class="field">
+            <label for="passWord">Passcode</label>
+            <input id="passWord" placeholder="Enter meeting passcode" />
+          </div>
+
+          <div class="field">
+            <label for="userName">Bot Display Name</label>
+            <input id="userName" placeholder="Calle AI" value="Calle AI" />
+          </div>
+
+          <button id="joinBtn">⚡ Join Meeting</button>
+
+          <div class="status-card">
+            <div class="status-row">
+              <span>Browser Events</span>
+              <span class="dot" id="browserStatus"></span>
+            </div>
+            <div class="status-row">
+              <span>Speech Output</span>
+              <span class="dot" id="speechStatus"></span>
+            </div>
+          </div>
+
+          <div class="widget-wrap">
+            <div class="widget-title">Calle Voice Agent</div>
+            <elevenlabs-convai agent-id="agent_7401km5x2hhwemta4c2tm4azzap9"></elevenlabs-convai>
+          </div>
+        </aside>
+
+        <section class="panel meeting-panel">
+          <div class="meeting-header">
+            <div>
+              <h2>⚡ Live Meeting View</h2>
+              <p>Embedded Zoom session with browser-side voice playback</p>
+            </div>
+            <div class="badge">Thunder Mode</div>
+          </div>
+
+          <div class="dashboard">
+            <div class="feed-card">
+              <h3>⚡ Live Transcript</h3>
+              <div class="feed-body" id="transcriptFeed">
+                <span class="feed-placeholder">Waiting for transcript...</span>
+              </div>
+            </div>
+
+            <div class="feed-card agent-card">
+              <div>
+                <h3>⚡ Agent Response</h3>
+                <div class="feed-body" id="agentFeed">
+                  <span class="feed-placeholder">Waiting for agent reply...</span>
+                </div>
+              </div>
+
+              <div class="speaking-box">
+                <div class="speaking-top">
+                  <div class="pulse-ring" id="pulseRing"></div>
+                  <div class="speaking-label" id="speakingLabel">Agent idle</div>
+                </div>
+                <div class="voice-bars" id="voiceBars">
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                  <span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="meetingSDKElement"></div>
+        </section>
+      </div>
+
+      <div class="footer-note">
+        CALLE // BLACKOUT INTERFACE // LIVE ZOOM AGENT
+      </div>
+    </div>
 
     <script>
       const client = ZoomMtgEmbedded.createClient();
 
+      const browserStatus = document.getElementById("browserStatus");
+      const speechStatus = document.getElementById("speechStatus");
+      const transcriptFeed = document.getElementById("transcriptFeed");
+      const agentFeed = document.getElementById("agentFeed");
+      const pulseRing = document.getElementById("pulseRing");
+      const voiceBars = document.getElementById("voiceBars");
+      const speakingLabel = document.getElementById("speakingLabel");
+
+      const browserProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const browserWs = new WebSocket(`${browserProtocol}//${window.location.host}/browser-events`);
+
+      browserWs.onopen = () => {
+        console.log("Connected to browser-events WebSocket");
+        browserStatus.classList.add("live");
+      };
+
+      browserWs.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log("Browser event:", data);
+
+        if (data.type === "transcript") {
+          transcriptFeed.textContent = data.text;
+        }
+
+        if (data.type === "agent_text") {
+          agentFeed.textContent = data.text;
+
+          const utterance = new SpeechSynthesisUtterance(data.text);
+          utterance.rate = 1;
+          utterance.pitch = 1;
+          utterance.volume = 1;
+
+          utterance.onstart = () => {
+            speechStatus.classList.add("live");
+            pulseRing.classList.add("live");
+            voiceBars.classList.add("live");
+            speakingLabel.textContent = "Agent speaking";
+          };
+
+          utterance.onend = () => {
+            speechStatus.classList.remove("live");
+            pulseRing.classList.remove("live");
+            voiceBars.classList.remove("live");
+            speakingLabel.textContent = "Agent idle";
+          };
+
+          utterance.onerror = () => {
+            speechStatus.classList.remove("live");
+            pulseRing.classList.remove("live");
+            voiceBars.classList.remove("live");
+            speakingLabel.textContent = "Speech error";
+          };
+
+          speechSynthesis.cancel();
+          speechSynthesis.speak(utterance);
+        }
+
+        if (data.type === "agent_audio_event") {
+          console.log("Agent audio event received");
+        }
+      };
+
+      browserWs.onerror = (err) => {
+        console.error("browser-events socket error", err);
+        browserStatus.classList.remove("live");
+      };
+
+      browserWs.onclose = () => {
+        browserStatus.classList.remove("live");
+      };
+
       async function joinMeeting() {
-        const meetingNumber = document.getElementById("meetingNumber").value.trim();
+        const meetingNumber = document
+          .getElementById("meetingNumber")
+          .value
+          .replace(/\s+/g, "")
+          .trim();
+
         const passWord = document.getElementById("passWord").value.trim();
-        const userName = document.getElementById("userName").value.trim() || "⚡ Calle AI";
+        const userName = document.getElementById("userName").value.trim() || "Calle AI";
 
         const signatureRes = await fetch("/zoom-signature", {
           method: "POST",
@@ -127,7 +646,6 @@
         });
 
         const { signature, sdkKey, error } = await signatureRes.json();
-
         if (error) {
           alert(error);
           return;
@@ -135,13 +653,14 @@
 
         await client.init({
           zoomAppRoot: document.getElementById("meetingSDKElement"),
-          language: "en-US"
+          language: "en-US",
+          customize: {}
         });
 
         await client.join({
           sdkKey,
           signature,
-          meetingNumber: String(meetingNumber),
+          meetingNumber,
           password: passWord,
           userName
         });
