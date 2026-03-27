@@ -4,15 +4,17 @@
     <meta charset="UTF-8" />
     <title>Calle Control Room</title>
 
-    <!-- Zoom SDK -->
-    <script src="https://source.zoom.us/4.0.7/lib/vendor/react.min.js"></script>
-    <script src="https://source.zoom.us/4.0.7/lib/vendor/react-dom.min.js"></script>
-    <script src="https://source.zoom.us/4.0.7/lib/vendor/redux.min.js"></script>
-    <script src="https://source.zoom.us/4.0.7/lib/vendor/redux-thunk.min.js"></script>
-    <script src="https://source.zoom.us/4.0.7/zoom-meeting-embedded-4.0.7.min.js"></script>
-
-    <!-- ElevenLabs Widget -->
-    <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async></script>
+    <!--
+      Zoom Meeting SDK — installed via npm, served from your own bundle,
+      OR load from the official CDN at the current stable version.
+      CDN approach shown here; for production use npm + a bundler.
+      Check latest version at: https://www.npmjs.com/package/@zoom/meetingsdk
+    -->
+    <script src="https://source.zoom.us/3.13.2/lib/vendor/react.min.js"></script>
+    <script src="https://source.zoom.us/3.13.2/lib/vendor/react-dom.min.js"></script>
+    <script src="https://source.zoom.us/3.13.2/lib/vendor/redux.min.js"></script>
+    <script src="https://source.zoom.us/3.13.2/lib/vendor/redux-thunk.min.js"></script>
+    <script src="https://source.zoom.us/3.13.2/zoom-meeting-embedded-3.13.2.min.js"></script>
 
     <style>
       :root {
@@ -22,11 +24,13 @@
         --text: #f8f8f8;
         --muted: #bdbdbd;
         --border: rgba(255, 204, 0, 0.25);
+        --green: #22c55e;
+        --red: #ef4444;
       }
 
       body {
         margin: 0;
-        font-family: Arial;
+        font-family: Arial, sans-serif;
         background: #000;
         color: var(--text);
       }
@@ -41,6 +45,7 @@
         border: 1px solid var(--border);
         border-radius: 16px;
         background: var(--panel);
+        margin-bottom: 16px;
       }
 
       input, select {
@@ -51,21 +56,79 @@
         background: #111;
         color: white;
         border: 1px solid #333;
+        box-sizing: border-box;
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
       }
 
       button {
-        width: 100%;
+        flex: 1;
         padding: 12px;
         background: var(--yellow);
         border: none;
         border-radius: 10px;
         font-weight: bold;
         cursor: pointer;
+        color: #000;
       }
 
+      button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+
+      button.danger {
+        background: var(--red);
+        color: #fff;
+      }
+
+      #status-bar {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+        font-size: 13px;
+        padding: 10px 0;
+        color: var(--muted);
+      }
+
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+        background: #555;
+      }
+
+      .dot.green { background: var(--green); }
+      .dot.red   { background: var(--red); }
+
+      #log {
+        background: #0a0a0a;
+        border: 1px solid #222;
+        border-radius: 8px;
+        padding: 10px;
+        font-family: monospace;
+        font-size: 12px;
+        height: 120px;
+        overflow-y: auto;
+        color: #aaa;
+        margin-top: 10px;
+      }
+
+      #log .agent { color: var(--yellow); }
+      #log .user  { color: #60a5fa; }
+      #log .info  { color: #6b7280; }
+
       #meetingSDKElement {
-        margin-top: 20px;
+        margin-top: 10px;
         height: 600px;
+        border-radius: 12px;
+        overflow: hidden;
       }
     </style>
   </head>
@@ -74,13 +137,12 @@
     <div class="shell">
 
       <div class="panel">
-        <h2>⚡ Being Control Room ⚡</h2>
+        <h2>⚡ Calle Control Room ⚡</h2>
 
         <input id="meetingNumber" placeholder="Meeting Number" />
         <input id="passWord" placeholder="Passcode" />
         <input id="userName" value="Calle AI" />
 
-        <!-- DROPDOWN -->
         <select id="agentSelect">
           <option value="agent_7401km5x2hhwemta4c2tm4azzap9">Calle</option>
           <option value="agent_7501kd6455vqft3bhq0kmthnt5d0">Boomba</option>
@@ -91,11 +153,19 @@
 
         <input id="customAgentId" placeholder="Custom agent ID (optional)" />
 
-        <button id="loadAgentBtn">Load Agent</button>
-        <button id="joinBtn">Join Meeting</button>
+        <div class="btn-row">
+          <button id="joinBtn">Join Meeting</button>
+          <button id="startAgentBtn" disabled>Start Agent</button>
+          <button id="stopAgentBtn" class="danger" disabled>Stop Agent</button>
+        </div>
 
-        <!-- AGENT -->
-        <div id="agentWidgetHost" style="margin-top:20px;"></div>
+        <div id="status-bar">
+          <span><span class="dot" id="zoomDot"></span>Zoom: <span id="zoomStatus">disconnected</span></span>
+          <span><span class="dot" id="agentDot"></span>Agent: <span id="agentStatus">idle</span></span>
+          <span><span class="dot" id="audioDot"></span>Audio: <span id="audioStatus">off</span></span>
+        </div>
+
+        <div id="log"></div>
       </div>
 
       <div id="meetingSDKElement"></div>
@@ -103,68 +173,317 @@
     </div>
 
     <script>
+      // ===== Zoom SDK setup =====
       const client = ZoomMtgEmbedded.createClient();
+      let zoomJoined = false;
 
-      let currentAgentId = "agent_7401km5x2hhwemta4c2tm4azzap9";
+      // ===== WebSocket to server =====
+      const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/browser-events";
+      let serverWs = null;
+      let wsReady = false;
 
-      function getAgent() {
+      function connectServerWs() {
+        serverWs = new WebSocket(WS_URL);
+
+        serverWs.onopen = () => {
+          wsReady = true;
+          log("info", "Connected to server");
+        };
+
+        serverWs.onclose = () => {
+          wsReady = false;
+          log("info", "Server WS closed — reconnecting in 3s...");
+          setTimeout(connectServerWs, 3000);
+        };
+
+        serverWs.onerror = (e) => {
+          console.error("Server WS error", e);
+        };
+
+        serverWs.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            handleServerMessage(msg);
+          } catch (e) {
+            console.error("WS parse error", e);
+          }
+        };
+      }
+
+      connectServerWs();
+
+      function sendToServer(payload) {
+        if (serverWs && serverWs.readyState === WebSocket.OPEN) {
+          serverWs.send(JSON.stringify(payload));
+        }
+      }
+
+      // ===== Web Audio API — play agent audio back into Zoom =====
+      let audioCtx = null;
+      let audioQueue = [];
+      let isPlayingAudio = false;
+      let nextPlayTime = 0;
+
+      function getAudioContext() {
+        if (!audioCtx) {
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        }
+        // Resume if suspended (browser autoplay policy)
+        if (audioCtx.state === "suspended") audioCtx.resume();
+        return audioCtx;
+      }
+
+      /**
+       * Enqueue a base64 PCM audio chunk from ElevenLabs.
+       * ElevenLabs returns 16kHz mono signed-16-bit little-endian PCM.
+       * We decode it and schedule it on the Web Audio timeline so chunks
+       * play back-to-back without gaps or overlaps.
+       */
+      function enqueueAudio(base64Chunk) {
+        const ctx = getAudioContext();
+        const raw = Uint8Array.from(atob(base64Chunk), c => c.charCodeAt(0));
+        const pcm16 = new Int16Array(raw.buffer);
+        const float32 = new Float32Array(pcm16.length);
+
+        for (let i = 0; i < pcm16.length; i++) {
+          float32[i] = pcm16[i] / 32768.0;
+        }
+
+        const buffer = ctx.createBuffer(1, float32.length, 16000);
+        buffer.copyToChannel(float32, 0);
+
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+
+        const startAt = Math.max(ctx.currentTime, nextPlayTime);
+        source.start(startAt);
+        nextPlayTime = startAt + buffer.duration;
+
+        setDot("audioDot", "green");
+        setStatus("audioStatus", "playing");
+
+        source.onended = () => {
+          if (nextPlayTime <= ctx.currentTime + 0.05) {
+            setDot("audioDot", "");
+            setStatus("audioStatus", "listening");
+          }
+        };
+      }
+
+      function clearAudioQueue() {
+        nextPlayTime = 0;
+        setDot("audioDot", "");
+        setStatus("audioStatus", "listening");
+      }
+
+      // ===== Capture audio from Zoom and stream to ElevenLabs =====
+      // Zoom's embedded SDK does not expose raw PCM directly.
+      // We tap the user's microphone via getUserMedia, process it
+      // to 16kHz mono 16-bit PCM, and send chunks to the server.
+      let micStream = null;
+      let micProcessor = null;
+
+      async function startMicCapture() {
+        try {
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          const ctx = getAudioContext();
+          const source = ctx.createMediaStreamSource(micStream);
+
+          // ScriptProcessorNode (legacy but broadly supported; replace with AudioWorklet for production)
+          micProcessor = ctx.createScriptProcessor(4096, 1, 1);
+
+          micProcessor.onaudioprocess = (e) => {
+            const inputData = e.inputBuffer.getChannelData(0);
+
+            // Downsample from device sample rate to 16kHz
+            const targetSampleRate = 16000;
+            const ratio = ctx.sampleRate / targetSampleRate;
+            const outputLength = Math.floor(inputData.length / ratio);
+            const pcm16 = new Int16Array(outputLength);
+
+            for (let i = 0; i < outputLength; i++) {
+              const sample = inputData[Math.floor(i * ratio)];
+              pcm16[i] = Math.max(-32768, Math.min(32767, sample * 32767));
+            }
+
+            const base64 = btoa(String.fromCharCode(...new Uint8Array(pcm16.buffer)));
+            sendToServer({ type: "user_audio_chunk", audio_base_64: base64 });
+          };
+
+          source.connect(micProcessor);
+          micProcessor.connect(ctx.destination);
+
+          log("info", "Microphone capture started (16kHz)");
+          setDot("audioDot", "green");
+          setStatus("audioStatus", "listening");
+        } catch (err) {
+          log("info", "Mic error: " + err.message);
+          console.error("Mic capture failed:", err);
+        }
+      }
+
+      function stopMicCapture() {
+        if (micProcessor) {
+          micProcessor.disconnect();
+          micProcessor = null;
+        }
+        if (micStream) {
+          micStream.getTracks().forEach(t => t.stop());
+          micStream = null;
+        }
+        setDot("audioDot", "");
+        setStatus("audioStatus", "off");
+      }
+
+      // ===== Handle messages from server =====
+      function handleServerMessage(msg) {
+        switch (msg.type) {
+
+          case "session_ready":
+            log("info", "Agent session ready — starting mic capture");
+            setDot("agentDot", "green");
+            setStatus("agentStatus", "connected");
+            startMicCapture();
+            document.getElementById("stopAgentBtn").disabled = false;
+            break;
+
+          case "agent_audio":
+            enqueueAudio(msg.audio_base_64);
+            break;
+
+          case "interruption":
+            clearAudioQueue();
+            break;
+
+          case "agent_text":
+            log("agent", "Agent: " + msg.text);
+            break;
+
+          case "transcript":
+            log("user", "You: " + msg.text);
+            break;
+
+          default:
+            break;
+        }
+      }
+
+      // ===== UI helpers =====
+      function setDot(id, color) {
+        const el = document.getElementById(id);
+        el.className = "dot" + (color ? " " + color : "");
+      }
+
+      function setStatus(id, text) {
+        document.getElementById(id).textContent = text;
+      }
+
+      function log(cls, text) {
+        const el = document.getElementById("log");
+        const line = document.createElement("div");
+        line.className = cls;
+        line.textContent = "[" + new Date().toLocaleTimeString() + "] " + text;
+        el.appendChild(line);
+        el.scrollTop = el.scrollHeight;
+      }
+
+      function getSelectedAgentId() {
         const custom = document.getElementById("customAgentId").value.trim();
         const dropdown = document.getElementById("agentSelect").value;
-
-        return custom || dropdown || currentAgentId;
+        return custom || dropdown || "agent_7401km5x2hhwemta4c2tm4azzap9";
       }
 
-      function loadAgent(agentId) {
-        const host = document.getElementById("agentWidgetHost");
-        host.innerHTML = "";
-
-        const widget = document.createElement("elevenlabs-convai");
-        widget.setAttribute("agent-id", agentId);
-
-        host.appendChild(widget);
-        currentAgentId = agentId;
-
-        console.log("Loaded agent:", agentId);
-      }
-
-      document.getElementById("loadAgentBtn").onclick = () => {
-        loadAgent(getAgent());
-      };
-
-      // Load default
-      loadAgent(currentAgentId);
-
+      // ===== Join Zoom meeting =====
       async function joinMeeting() {
         const meetingNumber = document.getElementById("meetingNumber").value.trim();
         const passWord = document.getElementById("passWord").value.trim();
         const userName = document.getElementById("userName").value.trim();
 
-        const res = await fetch("/zoom-signature", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        if (!meetingNumber) {
+          alert("Please enter a meeting number.");
+          return;
+        }
+
+        try {
+          log("info", "Fetching Zoom signature...");
+          const res = await fetch("/zoom-signature", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ meetingNumber, role: 0 })
+          });
+
+          const { signature, sdkKey, error } = await res.json();
+          if (error) throw new Error(error);
+
+          await client.init({
+            zoomAppRoot: document.getElementById("meetingSDKElement"),
+            language: "en-US",
+            customize: {
+              meetingInfo: ["topic", "host", "mn", "pwd", "telPwd", "invite", "participant", "dc", "enctype"],
+              toolbar: {
+                buttons: [{ text: "Custom Button", className: "CustomButton", onClick: () => {} }]
+              }
+            }
+          });
+
+          await client.join({
+            sdkKey,
+            signature,
             meetingNumber,
-            role: 0
-          })
-        });
+            password: passWord,
+            userName
+          });
 
-        const { signature, sdkKey } = await res.json();
+          zoomJoined = true;
+          setDot("zoomDot", "green");
+          setStatus("zoomStatus", "connected");
+          log("info", "Joined Zoom meeting as " + userName);
 
-        await client.init({
-          zoomAppRoot: document.getElementById("meetingSDKElement"),
-          language: "en-US"
-        });
+          document.getElementById("joinBtn").disabled = true;
+          document.getElementById("startAgentBtn").disabled = false;
 
-        await client.join({
-          sdkKey,
-          signature,
-          meetingNumber,
-          password: passWord,
-          userName
-        });
+        } catch (err) {
+          log("info", "Zoom join failed: " + err.message);
+          console.error("Zoom join error:", err);
+        }
       }
 
+      // ===== Start agent session =====
+      async function startAgent() {
+        if (!zoomJoined) {
+          alert("Join a Zoom meeting first.");
+          return;
+        }
+
+        const agentId = getSelectedAgentId();
+        log("info", "Starting agent: " + agentId);
+        setDot("agentDot", "");
+        setStatus("agentStatus", "connecting...");
+
+        // Resume AudioContext (required after user gesture)
+        getAudioContext();
+
+        sendToServer({ type: "start_session", agentId });
+        document.getElementById("startAgentBtn").disabled = true;
+      }
+
+      // ===== Stop agent session =====
+      function stopAgent() {
+        stopMicCapture();
+        clearAudioQueue();
+        sendToServer({ type: "switch_agent", agentId: "" }); // closes ElevenLabs WS server-side
+        setDot("agentDot", "");
+        setStatus("agentStatus", "idle");
+        document.getElementById("startAgentBtn").disabled = false;
+        document.getElementById("stopAgentBtn").disabled = true;
+        log("info", "Agent stopped");
+      }
+
+      // ===== Wire up buttons =====
       document.getElementById("joinBtn").onclick = joinMeeting;
+      document.getElementById("startAgentBtn").onclick = startAgent;
+      document.getElementById("stopAgentBtn").onclick = stopAgent;
     </script>
   </body>
 </html>
