@@ -6,26 +6,12 @@ import path from "path";
 import { fileURLToPath } from "url";
 import http from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import puppeteer from "puppeteer";
-import { execSync } from "child_process";
+import { chromium } from "playwright-core";
+
 
 dotenv.config();
 
-// ===== Install Chrome if not present =====
-// Render's build step is unreliable — install at runtime instead.
-try {
-  console.log("Checking for Chrome...");
-  execSync("npx puppeteer browsers install chrome", {
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      PUPPETEER_CACHE_DIR: process.env.PUPPETEER_CACHE_DIR || "/opt/render/.cache/puppeteer"
-    }
-  });
-  console.log("Chrome ready.");
-} catch (err) {
-  console.error("Chrome install warning:", err.message);
-}
+
 
 dotenv.config();
 
@@ -110,7 +96,38 @@ async function launchBot({ meetingNumber, password, userName, agentId, sessionId
   try {
     sendToBrowser(browserWs, { type: "bot_status", status: "launching", msg: "Launching headless browser..." });
 
-    const browser = await puppeteer.launch({
+    // Try system Chrome locations on Render's Linux container
+    const chromePaths = [
+      "/usr/bin/google-chrome",
+      "/usr/bin/google-chrome-stable",
+      "/usr/bin/chromium-browser",
+      "/usr/bin/chromium",
+      "/snap/bin/chromium",
+    ];
+
+    const { execSync } = await import("child_process");
+    let executablePath = null;
+    for (const p of chromePaths) {
+      try {
+        execSync(`test -f ${p}`);
+        executablePath = p;
+        console.log(`[bot] Found Chrome at: ${p}`);
+        break;
+      } catch {}
+    }
+
+    if (!executablePath) {
+      // Last resort: try which
+      try {
+        executablePath = execSync("which chromium-browser || which chromium || which google-chrome").toString().trim();
+        console.log(`[bot] Found Chrome via which: ${executablePath}`);
+      } catch {
+        throw new Error("No Chrome/Chromium found on system. Install chromium on Render.");
+      }
+    }
+
+    const browser = await chromium.launch({
+      executablePath,
       headless: true,
       args: [
         "--no-sandbox",
@@ -120,14 +137,15 @@ async function launchBot({ meetingNumber, password, userName, agentId, sessionId
         "--use-fake-ui-for-media-stream",
         "--use-fake-device-for-media-stream",
         "--autoplay-policy=no-user-gesture-required",
-        "--allow-running-insecure-content",
       ],
     });
 
-    const page = await browser.newPage();
-    const context = browser.defaultBrowserContext();
+    const context = await browser.newContext({
+      permissions: ["microphone", "camera"],
+    });
+    const page = await context.newPage();
+
     const renderUrl = process.env.RENDER_EXTERNAL_URL || "https://zoom-bba4.onrender.com";
-    await context.overridePermissions(renderUrl, ["microphone", "camera"]);
 
     page.on("console", (msg) => {
       const text = msg.text();
@@ -148,7 +166,7 @@ async function launchBot({ meetingNumber, password, userName, agentId, sessionId
       `&sessionId=${encodeURIComponent(sessionId)}`;
 
     console.log(`[bot:${sessionId}] Navigating to: ${botUrl}`);
-    await page.goto(botUrl, { waitUntil: "networkidle2", timeout: 60000 });
+    await page.goto(botUrl, { waitUntil: "networkidle", timeout: 60000 });
 
     bots.set(sessionId, { browser, page, browserWs });
     sendToBrowser(browserWs, { type: "bot_status", status: "running", msg: "Bot is live in the meeting!" });
