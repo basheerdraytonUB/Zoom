@@ -181,19 +181,23 @@
       const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/browser-events";
       let serverWs = null;
       let wsReady = false;
+      let wsReconnectDelay = 1000; // starts at 1s, backs off to 30s max
 
       function connectServerWs() {
+        log("info", "Connecting to server...");
         serverWs = new WebSocket(WS_URL);
 
         serverWs.onopen = () => {
           wsReady = true;
+          wsReconnectDelay = 1000; // reset backoff on success
           log("info", "Connected to server");
         };
 
         serverWs.onclose = () => {
           wsReady = false;
-          log("info", "Server WS closed — reconnecting in 3s...");
-          setTimeout(connectServerWs, 3000);
+          log("info", `Server WS closed — reconnecting in ${wsReconnectDelay / 1000}s...`);
+          setTimeout(connectServerWs, wsReconnectDelay);
+          wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30_000); // cap at 30s
         };
 
         serverWs.onerror = (e) => {
@@ -211,6 +215,13 @@
       }
 
       connectServerWs();
+
+      // Browser-side keepalive — send a ping every 15s so Render doesn't drop the WS
+      setInterval(() => {
+        if (serverWs && serverWs.readyState === WebSocket.OPEN) {
+          serverWs.send(JSON.stringify({ type: "ping" }));
+        }
+      }, 15_000);
 
       function sendToServer(payload) {
         if (serverWs && serverWs.readyState === WebSocket.OPEN) {
