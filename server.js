@@ -7,6 +7,25 @@ import { fileURLToPath } from "url";
 import http from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import puppeteer from "puppeteer";
+import { execSync } from "child_process";
+
+dotenv.config();
+
+// ===== Install Chrome if not present =====
+// Render's build step is unreliable — install at runtime instead.
+try {
+  console.log("Checking for Chrome...");
+  execSync("npx puppeteer browsers install chrome", {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      PUPPETEER_CACHE_DIR: process.env.PUPPETEER_CACHE_DIR || "/opt/render/.cache/puppeteer"
+    }
+  });
+  console.log("Chrome ready.");
+} catch (err) {
+  console.error("Chrome install warning:", err.message);
+}
 
 dotenv.config();
 
