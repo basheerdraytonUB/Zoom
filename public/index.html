@@ -353,6 +353,11 @@
       function handleServerMessage(msg) {
         switch (msg.type) {
 
+          case "server_ping":
+            // Server keepalive — respond to keep Cloudflare proxy alive
+            sendToServer({ type: "ping" });
+            break;
+
           case "session_ready":
             log("info", "Agent session ready — starting mic capture");
             setDot("agentDot", "green");
