@@ -191,6 +191,8 @@
           wsReady = true;
           wsReconnectDelay = 1000; // reset backoff on success
           log("info", "Connected to server");
+          // Send immediate ping — Cloudflare proxy needs traffic right away
+          serverWs.send(JSON.stringify({ type: "ping" }));
         };
 
         serverWs.onclose = () => {
@@ -216,12 +218,12 @@
 
       connectServerWs();
 
-      // Browser-side keepalive — send a ping every 15s so Render doesn't drop the WS
+      // Browser-side keepalive — send a ping every 4s to beat Render's proxy timeout
       setInterval(() => {
         if (serverWs && serverWs.readyState === WebSocket.OPEN) {
           serverWs.send(JSON.stringify({ type: "ping" }));
         }
-      }, 15_000);
+      }, 4_000);
 
       function sendToServer(payload) {
         if (serverWs && serverWs.readyState === WebSocket.OPEN) {
