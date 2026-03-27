@@ -358,25 +358,14 @@ browserWss.on("connection", (ws) => {
     elevenConnecting: false
   });
 
-  // Heartbeat — ping every 20s so Render doesn't kill the WS connection.
-  // Render free tier drops idle connections; this keeps them alive.
-  ws.isAlive = true;
-  ws.on("pong", () => { ws.isAlive = true; });
-
+  // Keepalive — send a ping every 5s to prevent proxy timeout
   const heartbeat = setInterval(() => {
-    if (ws.readyState !== WebSocket.OPEN) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.ping();
+    } else {
       clearInterval(heartbeat);
-      return;
     }
-    if (!ws.isAlive) {
-      console.log("[browser] Client heartbeat timeout — terminating");
-      clearInterval(heartbeat);
-      ws.terminate();
-      return;
-    }
-    ws.isAlive = false;
-    ws.ping();
-  }, 20_000);
+  }, 5_000);
 
   ws.on("message", async (rawMsg) => {
     try {
