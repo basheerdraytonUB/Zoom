@@ -24,6 +24,11 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
+// Health check — Render and UptimeRobot can ping this to keep the instance warm
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", sessions: sessions.size, ts: Date.now() });
+});
+
 // ===== ElevenLabs config =====
 // Agent ID can be overridden per-session; default pulled from env
 const DEFAULT_AGENT_ID =
@@ -308,11 +313,35 @@ browserWss.on("connection", (ws) => {
     elevenConnecting: false
   });
 
+  // Heartbeat — ping every 20s so Render doesn't kill the WS connection.
+  // Render free tier drops idle connections; this keeps them alive.
+  ws.isAlive = true;
+  ws.on("pong", () => { ws.isAlive = true; });
+
+  const heartbeat = setInterval(() => {
+    if (ws.readyState !== WebSocket.OPEN) {
+      clearInterval(heartbeat);
+      return;
+    }
+    if (!ws.isAlive) {
+      console.log("[browser] Client heartbeat timeout — terminating");
+      clearInterval(heartbeat);
+      ws.terminate();
+      return;
+    }
+    ws.isAlive = false;
+    ws.ping();
+  }, 20_000);
+
   ws.on("message", async (rawMsg) => {
     try {
       const msg = JSON.parse(rawMsg.toString());
 
       switch (msg.type) {
+
+        // Keep-alive ping from browser — just ignore silently
+        case "ping":
+          break;
 
         // Browser signals it's ready to start talking (after joining Zoom meeting)
         case "start_session": {
@@ -355,6 +384,7 @@ browserWss.on("connection", (ws) => {
 
   ws.on("close", () => {
     console.log("[browser] Client disconnected");
+    clearInterval(heartbeat);
     const session = sessions.get(ws);
     if (session?.elevenWs) {
       session.elevenWs.close();
@@ -448,6 +478,21 @@ async function startRTMS(meetingId, participantUserId, rtmsClientId, accessToken
 
     const text = await response.text();
     console.log("[RTMS] Start response:", text);
+
+    // Surface the most common error clearly
+    try {
+      const json = JSON.parse(text);
+      if (json.code === 13262) {
+        console.error(
+          "\n⚠️  RTMS AUTH ERROR — Your Zoom app is not authorized for RTMS.\n" +
+          "To fix this:\n" +
+          "  1. Go to marketplace.zoom.us → Manage → your app → Scopes\n" +
+          "  2. Add all 'rtms' scopes\n" +
+          "  3. Go to zoom.us/account/setting → search 'Allow apps to access meeting content' → enable it\n" +
+          "  4. Redeploy this server\n"
+        );
+      }
+    } catch {}
   } catch (err) {
     console.error("[RTMS] Start error:", err.message);
   }
