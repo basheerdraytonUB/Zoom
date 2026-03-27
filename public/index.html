@@ -8,8 +8,6 @@
     <script src="https://source.zoom.us/4.0.7/lib/vendor/redux.min.js"></script>
     <script src="https://source.zoom.us/4.0.7/lib/vendor/redux-thunk.min.js"></script>
     <script src="https://source.zoom.us/4.0.7/zoom-meeting-embedded-4.0.7.min.js"></script>
-
-    <!-- ElevenLabs fallback widget -->
     <script
       src="https://unpkg.com/@elevenlabs/convai-widget-embed"
       async
@@ -29,9 +27,7 @@
         --shadow: 0 0 24px rgba(255, 204, 0, 0.18);
       }
 
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
 
       body {
         margin: 0;
@@ -148,9 +144,7 @@
         backdrop-filter: blur(10px);
       }
 
-      .control-panel {
-        padding: 22px;
-      }
+      .control-panel { padding: 22px; }
 
       .panel-title {
         margin: 0 0 16px;
@@ -167,9 +161,7 @@
         line-height: 1.45;
       }
 
-      .field {
-        margin-bottom: 14px;
-      }
+      .field { margin-bottom: 14px; }
 
       .field label {
         display: block;
@@ -181,7 +173,7 @@
         letter-spacing: 0.08em;
       }
 
-      input {
+      input, select {
         width: 100%;
         padding: 13px 14px;
         border-radius: 14px;
@@ -193,11 +185,11 @@
         transition: 0.2s ease;
       }
 
-      input::placeholder {
-        color: #9d9d9d;
-      }
+      option { color: black; }
 
-      input:focus {
+      input::placeholder { color: #9d9d9d; }
+
+      input:focus, select:focus {
         border-color: var(--yellow);
         box-shadow: 0 0 0 3px rgba(255, 204, 0, 0.12);
       }
@@ -222,6 +214,13 @@
         box-shadow: 0 14px 28px rgba(255, 204, 0, 0.28);
       }
 
+      .secondary-button {
+        background: rgba(255, 204, 0, 0.1);
+        color: var(--yellow-soft);
+        border: 1px solid rgba(255, 204, 0, 0.25);
+        box-shadow: none;
+      }
+
       .status-card {
         margin-top: 18px;
         padding: 14px;
@@ -239,9 +238,7 @@
         margin-bottom: 10px;
       }
 
-      .status-row:last-child {
-        margin-bottom: 0;
-      }
+      .status-row:last-child { margin-bottom: 0; }
 
       .dot {
         width: 10px;
@@ -270,6 +267,12 @@
         color: var(--yellow-soft);
         letter-spacing: 0.04em;
         text-transform: uppercase;
+      }
+
+      .widget-caption {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 12px;
       }
 
       .meeting-panel {
@@ -454,7 +457,7 @@
           <h1>⚡ Calle Control Room</h1>
           <p>
             Join your Zoom meeting with a storm-themed AI participant, monitor live transcript flow,
-            and talk with Calle through the fallback voice agent.
+            and choose which ElevenLabs agent should join the session.
           </p>
         </div>
         <div class="badge">⚡ Live Voice Agent Interface</div>
@@ -464,7 +467,7 @@
         <aside class="panel control-panel">
           <h2 class="panel-title">⚡ Join Settings</h2>
           <p class="panel-subtitle">
-            Enter your Zoom details below and launch Calle into the meeting.
+            Enter your Zoom details, choose an agent, then launch that voice assistant into the meeting.
           </p>
 
           <div class="field">
@@ -482,7 +485,28 @@
             <input id="userName" placeholder="Calle AI" value="Calle AI" />
           </div>
 
-          <button id="joinBtn">⚡ Join Meeting</button>
+          <div class="field">
+            <label for="agentSelect">Choose Agent</label>
+            <select id="agentSelect">
+              <option value="agent_7401km5x2hhwemta4c2tm4azzap9">Calle</option>
+              <option value="agent_your_second_agent_id">Sales Agent</option>
+              <option value="agent_your_third_agent_id">Support Agent</option>
+              <option value="agent_your_fourth_agent_id">Scheduler Agent</option>
+              <option value="">Custom Agent ID Below</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="customAgentId">Custom Agent ID</label>
+            <input
+              id="customAgentId"
+              placeholder="agent_xxxxxxxxxxxxxxxxxxxxx"
+              value=""
+            />
+          </div>
+
+          <button type="button" id="loadAgentBtn" class="secondary-button">Load Selected Agent</button>
+          <button type="button" id="joinBtn">⚡ Join Meeting</button>
 
           <div class="status-card">
             <div class="status-row">
@@ -496,8 +520,11 @@
           </div>
 
           <div class="widget-wrap">
-            <h3>⚡ Calle Voice Agent</h3>
-            <elevenlabs-convai agent-id="agent_7401km5x2hhwemta4c2tm4azzap9"></elevenlabs-convai>
+            <h3>⚡ Active Voice Agent</h3>
+            <div id="agentWidgetHost"></div>
+            <p class="widget-caption" id="activeAgentLabel">
+              Active agent: Calle
+            </p>
           </div>
         </aside>
 
@@ -561,6 +588,59 @@
       const pulseRing = document.getElementById("pulseRing");
       const voiceBars = document.getElementById("voiceBars");
       const speakingLabel = document.getElementById("speakingLabel");
+
+      const agentSelect = document.getElementById("agentSelect");
+      const customAgentId = document.getElementById("customAgentId");
+      const loadAgentBtn = document.getElementById("loadAgentBtn");
+      const agentWidgetHost = document.getElementById("agentWidgetHost");
+      const activeAgentLabel = document.getElementById("activeAgentLabel");
+
+      let currentAgentId = "agent_7401km5x2hhwemta4c2tm4azzap9";
+
+      function getSelectedAgentId() {
+        const customValue = customAgentId.value.trim();
+        const dropdownValue = agentSelect.value.trim();
+
+        if (customValue) return customValue;
+        if (dropdownValue) return dropdownValue;
+
+        return currentAgentId;
+      }
+
+      function getSelectedAgentName() {
+        const customValue = customAgentId.value.trim();
+        const selectedText = agentSelect.options[agentSelect.selectedIndex]?.text || "Custom Agent";
+
+        if (customValue) return customValue;
+        if (agentSelect.value) return selectedText;
+
+        return "Unknown Agent";
+      }
+
+      function renderAgentWidget(agentId) {
+        agentWidgetHost.innerHTML = "";
+
+        const widget = document.createElement("elevenlabs-convai");
+        widget.setAttribute("agent-id", agentId);
+
+        agentWidgetHost.appendChild(widget);
+
+        currentAgentId = agentId;
+        activeAgentLabel.textContent = `Active agent: ${getSelectedAgentName()}`;
+      }
+
+      loadAgentBtn.addEventListener("click", () => {
+        const selectedAgentId = getSelectedAgentId();
+
+        if (!selectedAgentId) {
+          alert("Please select or enter an agent ID.");
+          return;
+        }
+
+        renderAgentWidget(selectedAgentId);
+      });
+
+      renderAgentWidget(currentAgentId);
 
       const browserProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const browserWs = new WebSocket(`${browserProtocol}//${window.location.host}/browser-events`);
