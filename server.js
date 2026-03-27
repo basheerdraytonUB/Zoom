@@ -316,23 +316,12 @@ app.post("/zoom-webhook", async (req, res) => {
     }
   }
 
-  // ---- Meeting started: trigger RTMS via API (manual start fallback) ----
+  // ---- Meeting started ----
+  // For User-managed apps, we rely on auto-start in Zoom account settings
+  // rather than manually calling the RTMS API (which requires account_credentials).
   if (event === "meeting.started") {
     const meetingId = payload?.object?.id;
-    const participantUserId = payload?.object?.host_id;
-    const rtmsClientId = process.env.ZOOM_SDK_KEY;
-
-    if (!meetingId || !participantUserId || !rtmsClientId) {
-      console.error("Zoom webhook missing required fields");
-      return res.status(200).send("OK");
-    }
-
-    try {
-      const accessToken = await getZoomAccessToken();
-      await startRTMS(meetingId, participantUserId, rtmsClientId, accessToken);
-    } catch (err) {
-      console.error("RTMS start failed:", err.message);
-    }
+    console.log(`[webhook] Meeting started: ${meetingId} — waiting for auto-start RTMS webhook`);
   }
 
   res.status(200).send("OK");
@@ -358,10 +347,11 @@ browserWss.on("connection", (ws) => {
     elevenConnecting: false
   });
 
-  // Keepalive — send a ping every 5s to prevent proxy timeout
+  // Keepalive — send JSON every 5s instead of WS ping frames.
+  // Cloudflare intercepts raw ping frames; JSON messages pass through fine.
   const heartbeat = setInterval(() => {
     if (ws.readyState === WebSocket.OPEN) {
-      ws.ping();
+      ws.send(JSON.stringify({ type: "server_ping" }));
     } else {
       clearInterval(heartbeat);
     }
