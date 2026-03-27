@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>Bot</title>
+  <script src="https://source.zoom.us/3.13.2/lib/vendor/react.min.js"></script>
+  <script src="https://source.zoom.us/3.13.2/lib/vendor/react-dom.min.js"></script>
+  <script src="https://source.zoom.us/3.13.2/lib/vendor/redux.min.js"></script>
+  <script src="https://source.zoom.us/3.13.2/lib/vendor/redux-thunk.min.js"></script>
+  <script src="https://source.zoom.us/3.13.2/zoom-meeting-embedded-3.13.2.min.js"></script>
+  <style>
+    body { margin: 0; background: #000; }
+    #zoomEl { width: 1280px; height: 720px; }
+  </style>
+</head>
+<body>
+  <div id="zoomEl"></div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const meetingNumber = params.get("meetingNumber");
+    const password      = params.get("password") || "";
+    const userName      = params.get("userName") || "Calle AI";
+    const agentId       = params.get("agentId");
+    const sessionId     = params.get("sessionId");
+
+    console.log("Bot page loaded. Meeting:", meetingNumber, "Agent:", agentId);
+
+    // ===== ElevenLabs WebSocket =====
+    let elevenWs = null;
+    let audioCtx = null;
+    let nextPlayTime = 0;
+    let micProcessor = null;
+    let micStream = null;
+
+    function getAudioCtx() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+      }
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      return audioCtx;
+    }
+
+    function playAudioChunk(base64) {
+      try {
+        const ctx = getAudioCtx();
+        const raw = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+        const pcm16 = new Int16Array(raw.buffer);
+        const float32 = new Float32Array(pcm16.length);
+        for (let i = 0; i < pcm16.length; i++) {
+          float32[i] = pcm16[i] / 32768.0;
+        }
+        const buffer = ctx.createBuffer(1, float32.length, 16000);
+        buffer.copyToChannel(float32, 0);
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        const startAt = Math.max(ctx.currentTime, nextPlayTime);
+        source.start(startAt);
+        nextPlayTime = startAt + buffer.duration;
+        console.log("Playing audio chunk, duration:", buffer.duration.toFixed(2) + "s");
+      } catch (err) {
+        console.error("Audio playback error:", err.message);
+      }
+    }
+
+    async function connectElevenLabs() {
+      try {
+        console.log("Fetching ElevenLabs signed URL...");
+        const res = await fetch(`/eleven-signed-url?agentId=${encodeURIComponent(agentId)}`);
+        const { signed_url, error } = await res.json();
+        if (error) throw new Error(error);
+
+        console.log("Connecting to ElevenLabs...");
+        elevenWs = new WebSocket(signed_url);
+
+        elevenWs.onopen = () => {
+          console.log("ElevenLabs connected!");
+          elevenWs.send(JSON.stringify({
+            type: "conversation_initiation_client_data",
+            conversation_config_override: {}
+          }));
+          startMicCapture();
+        };
+
+        elevenWs.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+
+            if (data.type === "ping") {
+              elevenWs.send(JSON.stringify({ type: "pong", event_id: data.ping_event?.event_id }));
+              return;
+            }
+
+            if (data.type === "audio" && data.audio_event?.audio_base_64) {
+              playAudioChunk(data.audio_event.audio_base_64);
+            }
+
+            if (data.type === "agent_response" && data.agent_response_event?.agent_response) {
+              console.log("Agent:", data.agent_response_event.agent_response);
+            }
+
+            if (data.type === "user_transcript" && data.user_transcription_event?.user_transcript) {
+              console.log("User:", data.user_transcription_event.user_transcript);
+            }
+
+            if (data.type === "interruption") {
+              nextPlayTime = 0;
+            }
+
+          } catch (err) {
+            console.error("ElevenLabs message error:", err.message);
+          }
+        };
+
+        elevenWs.onclose = () => {
+          console.log("ElevenLabs disconnected — reconnecting in 3s...");
+          setTimeout(connectElevenLabs, 3000);
+        };
+
+        elevenWs.onerror = (err) => {
+          console.error("ElevenLabs WS error");
+        };
+
+      } catch (err) {
+        console.error("ElevenLabs connect failed:", err.message);
+        setTimeout(connectElevenLabs, 3000);
+      }
+    }
+
+    async function startMicCapture() {
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        const ctx = getAudioCtx();
+        const source = ctx.createMediaStreamSource(micStream);
+        micProcessor = ctx.createScriptProcessor(4096, 1, 1);
+
+        micProcessor.onaudioprocess = (e) => {
+          if (!elevenWs || elevenWs.readyState !== WebSocket.OPEN) return;
+          const inputData = e.inputBuffer.getChannelData(0);
+          const targetRate = 16000;
+          const ratio = ctx.sampleRate / targetRate;
+          const outLen = Math.floor(inputData.length / ratio);
+          const pcm16 = new Int16Array(outLen);
+          for (let i = 0; i < outLen; i++) {
+            const s = inputData[Math.floor(i * ratio)];
+            pcm16[i] = Math.max(-32768, Math.min(32767, s * 32767));
+          }
+          const b64 = btoa(String.fromCharCode(...new Uint8Array(pcm16.buffer)));
+          elevenWs.send(JSON.stringify({ user_audio_chunk: b64 }));
+        };
+
+        source.connect(micProcessor);
+        micProcessor.connect(ctx.destination);
+        console.log("Mic capture started");
+      } catch (err) {
+        console.error("Mic capture failed:", err.message);
+      }
+    }
+
+    // ===== Join Zoom =====
+    async function joinZoom() {
+      try {
+        console.log("Fetching Zoom signature...");
+        const res = await fetch("/zoom-signature", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ meetingNumber, role: 0 })
+        });
+        const { signature, sdkKey, error } = await res.json();
+        if (error) throw new Error(error);
+
+        console.log("Initializing Zoom SDK...");
+        const client = ZoomMtgEmbedded.createClient();
+        await client.init({
+          zoomAppRoot: document.getElementById("zoomEl"),
+          language: "en-US"
+        });
+
+        console.log("Joining meeting...");
+        await client.join({
+          sdkKey,
+          signature,
+          meetingNumber,
+          password,
+          userName
+        });
+
+        console.log("Joined Zoom meeting successfully!");
+
+        // Connect ElevenLabs after joining Zoom
+        await connectElevenLabs();
+
+      } catch (err) {
+        console.error("Zoom join failed:", err.message);
+      }
+    }
+
+    // Start everything
+    joinZoom();
+  </script>
+</body>
+</html>
