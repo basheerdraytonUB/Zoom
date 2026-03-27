@@ -265,13 +265,58 @@ app.post("/eleven-signed-url", async (req, res) => {
   }
 });
 
-// ===== Zoom webhook (RTMS trigger) =====
+// ===== Zoom webhook (RTMS trigger + URL validation) =====
 app.post("/zoom-webhook", async (req, res) => {
   const event = req.body.event;
   const payload = req.body.payload;
 
+  // ---- Zoom URL validation challenge ----
+  // Zoom sends this when you click "Validate" in the Marketplace app settings.
+  // We must respond with a SHA-256 HMAC of the plainToken or Zoom rejects the endpoint.
+  if (event === "endpoint.url_validation" && payload?.plainToken) {
+    const secretToken = process.env.ZOOM_WEBHOOK_SECRET_TOKEN;
+    if (!secretToken) {
+      console.error("Missing ZOOM_WEBHOOK_SECRET_TOKEN — cannot validate webhook URL");
+      return res.status(500).json({ error: "Missing ZOOM_WEBHOOK_SECRET_TOKEN" });
+    }
+
+    const { createHmac } = await import("crypto");
+    const hash = createHmac("sha256", secretToken)
+      .update(payload.plainToken)
+      .digest("hex");
+
+    console.log("Zoom webhook URL validation challenge — responding with hash");
+    return res.json({
+      plainToken: payload.plainToken,
+      encryptedToken: hash
+    });
+  }
+
   console.log("Zoom webhook received:", event);
 
+  // ---- RTMS started: connect to the media stream ----
+  // Zoom fires this after auto-start is configured and a meeting begins.
+  // payload contains rtms_stream_id and server_urls needed to connect.
+  if (event === "meeting.rtms_started") {
+    const { rtms_stream_id, server_urls } = payload?.object || {};
+    const meetingId = payload?.object?.meeting_uuid || payload?.object?.id;
+    console.log(`[RTMS] meeting.rtms_started — meetingId: ${meetingId}, streamId: ${rtms_stream_id}`);
+    console.log(`[RTMS] server_urls:`, server_urls);
+    // Broadcast to all browser sessions so they know RTMS is live
+    for (const [browserWs] of sessions) {
+      sendToBrowser(browserWs, { type: "rtms_started", meetingId, rtms_stream_id });
+    }
+  }
+
+  // ---- RTMS stopped ----
+  if (event === "meeting.rtms_stopped") {
+    console.log("[RTMS] meeting.rtms_stopped");
+    for (const [browserWs] of sessions) {
+      sendToBrowser(browserWs, { type: "rtms_stopped" });
+    }
+  }
+
+  // ---- Meeting started: trigger RTMS via API (manual start fallback) ----
   if (event === "meeting.started") {
     const meetingId = payload?.object?.id;
     const participantUserId = payload?.object?.host_id;
