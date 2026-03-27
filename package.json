@@ -1,6 +1,6 @@
 {
   "name": "zoom-bot",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "start": "node server.js"
@@ -10,6 +10,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.18.2",
     "jsrsasign": "^11.1.0",
+    "puppeteer": "^22.0.0",
     "ws": "^8.18.0"
   }
 }
